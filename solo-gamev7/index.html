@@ -318,6 +318,43 @@ button.act:disabled{opacity:.4}
 .rcell small{font-size:12px;color:#5a7a72;font-weight:700}
 .tv-chat{display:flex;flex-direction:column;gap:4px;width:100%;max-width:300px}
 .candcard.selected{outline:3px solid #f0a924;outline-offset:2px}
+.stopbox{background:#fff3f0;border:2px solid #e8a79b;border-radius:16px;padding:8px 10px;margin:6px 0}
+.stopbox small{display:block;color:#7a4a40;font-weight:700}
+.srow{display:flex;align-items:center;gap:6px;background:#fff;border-radius:12px;padding:6px 8px;margin:4px 0;border:2px dashed #e8a79b;cursor:grab;touch-action:none}
+.srow.done{opacity:.6;border-style:solid}
+.srow b{flex:1;font-size:14px}
+.srow small{font-size:12px;color:#5a7a72}
+.need{display:block;font-size:12px;color:#5a7a72;font-style:italic;max-width:110px;margin:0 auto}
+.counter-scene.stopmode .staffrow,.counter-scene.stopmode .rulebox,.counter-scene.stopmode .queue{display:none}
+.counter-scene.stopmode .srow{padding:4px 8px;margin:3px 0}
+.srow .act{padding:3px 8px;font-size:12px;margin:0;width:auto}
+.counter-scene.stopmode .stopbox > small{display:none}
+.counter-scene.stopmode .srow small{display:block}
+#app:has(.stopmode) .event{display:none}
+#app:has(.stopmode) .zone{padding:6px 4px;font-size:13px;min-height:0}
+.counter-scene.stopmode{padding:6px}
+.counter-scene.stopmode .stopbox{padding:5px 7px;margin:3px 0}
+.counter-scene.stopmode .pcard{padding-top:8px!important}
+#app:has(.pair) .event{display:none}
+#app:has(.pair) .zone{padding:6px 4px;font-size:13px;min-height:0}
+#app:has(.pair) .staffrow{display:none}
+#app:has(.pair) .pcand{padding:6px 4px}
+#app:has(.pair) .pcand small.need{display:none}
+#app:has(.pair) .pair{padding:6px 8px;margin:2px 0}
+#app:has(.pair) .dragtip{display:none}
+.candcard.hl{box-shadow:0 0 0 3px #7fd3b8,0 0 14px #7fd3b8;animation:pop .4s}
+.candlist.fixed{display:flex;gap:4px;overflow:hidden}
+.candlist.fixed .candcard{flex:1;min-width:0;padding:6px 5px}
+.candlist.fixed .candcard b{font-size:13px}
+.toolrow{display:flex;gap:6px;justify-content:center;margin:4px 0}
+.toolrow .act{margin:0;padding:5px 8px;font-size:12px}
+.pager{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0}
+.pager .act{margin:0;padding:4px 8px;font-size:12px}
+#app:has(.callcard) .dragtip,#app:has(.callcard) .rooms-h{display:none}
+#app:has(.slotgrid) .judge{padding:6px 8px;margin:4px 0}
+#app:has(.slotgrid) .judge b{font-size:14px}
+#app:has(.slotgrid) .judge div{font-size:12px}
+#app:has(.slotgrid) .candcard small{font-size:11px}
 </style>
 </head>
 <body>
@@ -348,7 +385,7 @@ const PHASE_NAME = {tutorial:'教學', counter:'櫃台', remind:'提醒', reveal
 const DAY_CFG = [
   {pool:['dept','period'], size:2, showAgeAt:45000, switchMs:8000, jump:0.15, counterMs:90000, spawnMs:4500, ramp:true, credits:4, risk:0.30, emergency:0,
    event:'第一天：條件只看科別與時段，把病人拖到對應科別診間放行，不符合就拖到門口。第 45 秒起病人卡片會顯示年齡層（條件不變）。'},
-  {pool:['dept','age'], size:2, switchMs:9000, jump:0, choose:true, risk:0.2, pair:true, pairChance:0.5, closure:true, counterMs:120000, spawnMs:4000, ramp:true, credits:3, emergency:0.12,
+  {pool:['dept','age'], size:2, switchMs:9000, jump:0, choose:true, risk:0.2, pair:true, phased:true, closure:false, counterMs:120000, spawnMs:4000, ramp:true, credits:3, emergency:0.12,
    event:'第二天：條件固定為科別與年齡層。重點是排序：兩位同時到時，先決定誰先叫；內科臨時停診，內科病人要通知並重新安排。'},
   {appt:true, pool:[], size:0, switchMs:0, jump:0, counterMs:195000, spawnMs:4000, credits:0, risk:0, emergency:0,
    event:'第三天：CESFAM 忙碌的一天。處理病患回覆、安排空缺時段、最後發提醒。'},
@@ -363,6 +400,10 @@ const CHOICE_MS = 15000;   // 兩位病人同時到櫃台時，選擇的時間
 const MAX_QUEUE = 4;
 const REMIND_MS = 45000;
 const REVEAL_MS = 7000;
+// 第二天分段（V7）：暖身 0–30 秒；固定雙人排序 30–75 秒（5 組）；臨時停診任務 75 秒起
+const DAY2_PAIR_AT = [30000, 40000, 50000, 60000, 70000];
+const DAY2_STOP_AT = 75000;
+const DAY2_NOTE = {2: '🚦 新挑戰！現在你要決定誰先處理！', 3: '🚫 突發任務：一般醫師門診（內科）上午臨時停診！有幾位病患需要處理！'};
 const COMPLAINT_MS = 2500;
 const MAX_STARS = 5;
 const REMIND_OPTS = [
@@ -840,6 +881,61 @@ function spawnPair() {
   } else G.queue.push(a, b);
 }
 
+// 第二天固定雙人排序：到了指定時間且櫃台空著時出現
+function spawnScheduledPair() {
+  const g = uid(); const a = newPatient(), b = newPatient();
+  a.group = b.group = g;
+  G.choice = [a, b]; G.choiceLeft = CHOICE_MS;
+  G.choice.forEach(c => { c.patience = Math.round(c.patience * CHOICE_MS / G.maxPatience); });
+}
+// 第二天臨時停診任務：4 張卡（3 位內科病人受影響、1 位不受影響）
+function startStop() {
+  const aff = [0, 1, 2].map(() => { const p = newPatient(); p.dept = '內科'; p.stopAff = true; return p; });
+  const other = newPatient(); other.dept = pick(['小兒科', '牙科']); other.stopAff = false;
+  G.stop = {cards: shuffle([...aff, other]), notified: 0, need: 3};
+  G.note = DAY2_NOTE[3];
+}
+function stopWrong(msg) {
+  G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad');
+  stamp('錯誤 ✗', false); G.scoreWhy = '停診任務判斷錯誤'; G.note = msg;
+}
+// 受影響：拖到「通知與重新安排」；不受影響：拖到自己的科別或按「維持預約」
+function stopDrop(i, zone) {
+  const S = G.stop; if (!S) return;
+  const c = S.cards[i]; if (!c || c.stopState) return;
+  if (c.stopAff) {
+    if (zone !== 'resched') { stopWrong(`${c.name} 是內科停診，請拖到「📣 通知與重新安排」`); return render(); }
+    c.stopState = 'done'; S.notified++;
+    G.score += 8; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+    G.stats.resched = (G.stats.resched || 0) + 1;
+    G.rescheduleQ = G.rescheduleQ || []; G.rescheduleQ.push({name: c.name, dept: c.dept});
+    stamp('已通知 ✓', true); G.scoreWhy = '通知並重新安排';
+    G.note = `已通知 ${c.name}，等待安排新時段 +8（${S.notified}／${S.need}）`;
+    if (S.notified === S.need) { G.score += 15; G.note = '🎉 停診危機解除！額外 +15 分'; sfx('win'); confetti(30); }
+    return render();
+  }
+  if (zone !== c.dept) { stopWrong(`${c.name} 不受停診影響，應該維持原預約`); return render(); }
+  stopKeep(i);
+}
+function stopKeep(i) {
+  const S = G.stop; if (!S) return;
+  const c = S.cards[i]; if (!c || c.stopState || c.stopAff) return;
+  c.stopState = 'done';
+  G.score += 5; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+  G.booked.push(c);
+  stamp('維持預約 ✓', true); G.scoreWhy = '維持原預約';
+  G.note = `${c.name} 維持原預約 +5`;
+  render();
+}
+function stopHTML() {
+  const S = G.stop; if (!S) return '';
+  const rows = S.cards.map((c, i) => c.stopState
+    ? `<div class="srow done"><b>${c.name}</b><small>${c.dept}</small><span>${c.stopAff ? '✓ 已通知' : '✓ 已維持'}</span></div>`
+    : `<div class="srow" data-stop="${i}"><b>${c.name}</b><small>${c.dept}｜${c.period}</small>${c.stopAff ? '<span class="warn">受停診影響</span>' : `<button class="act" data-act="stopkeep" data-i="${i}">✅ 維持預約</button>`}</div>`).join('');
+  return `<div class="stopbox"><b>🚨 內科臨時停診</b><small>受影響的病患拖到「📣 通知與重新安排」；不受影響的維持預約。</small>
+    <div class="muted">已完成通知 ${S.notified}／${S.need}</div>${rows}</div>`;
+}
+
 /* 插隊：有人說很急，玩家決定讓不讓他先進 */
 function makeJumper() {
   // 插隊時櫃台時間 +5 秒，並給 6 秒決定
@@ -899,6 +995,7 @@ function startDay(d) {
   G.day = d; G.phase = 'tutorial'; G.t = cfg().counterMs; G.totalT = G.t;
   G.paused = false; G.quitArmed = false; G.tutPage = 0; G.okStreak = 0; G.badStreak = 0; G.restUntil = 0; G.seenCount = 0; G.practiceDone = false; G.practiceMsg = null; G.rampFactor = 1; G.rampStage = 0; G.patFactor = 1;
   G.rules = []; G.open = {}; G.ruleAcc = 0; G.spawnAcc = 0;
+  G.dayPhase = 1; G.pairIdx = 0; G.stop = null;
   // 有 addAt 的關卡一開始只用前兩個條件（科別、時段），到時間再加入年齡層
   G.poolNow = null; G.ageNoted = false;
   rotateRule();
@@ -1054,6 +1151,7 @@ function pickNext(i, auto) {
   const rest = c.filter((_, j) => j !== i);
   rest.forEach(r => { r.group = null; });   // 這組已經選過，不會再跳出選擇
   const other = rest[0];
+  const pcW = chosen.patience, poW = other ? other.patience : 0;
   G.choice = null; G.queue.unshift(...rest);
   G.front = chosen; onNewFront();
   // 選完後給足時間幫他分配科別
@@ -1073,8 +1171,13 @@ function pickNext(i, auto) {
     flashQ('front', 'ok', '+3');
     sfx('ok');
   } else if (uc === uo) {
-    G.note = `${chosen.name} 先看，兩人一樣緊急，${other.name} 繼續等`;
-    stamp('先看 ' + chosen.name, true);
+    if (pcW <= poW + 1000) {   // 等得比較久（耐心較少）→ 正確
+      G.score += 3; G.note = `${chosen.name} 和 ${other.name} 同樣緊急，${chosen.name} 等比較久，先看 +3`;
+      stamp('等較久 ✓', true); flashQ('front', 'ok', '+3'); sfx('ok');
+    } else {
+      G.score -= 3; G.note = `同樣緊急，應先叫等比較久的 ${other.name} −3`;
+      stamp('應先叫等較久的人', false); sfx('bad');
+    }
   } else {
     G.note = `${other.name}（${URG[uo].label}）比較急，但你先叫了 ${chosen.name}`;
     stamp('先叫了較不急的人', false);
@@ -1095,6 +1198,7 @@ function timeoutFront() {
 
 function endCounter() {
   if (cfg().mass || cfg().appt) return finish();
+  G.stop = null;
   G.phase = 'remind'; G.t = REMIND_MS; G.totalT = REMIND_MS;
   G.front = null; G.queue = []; G.complaint = null; G.jumper = null; G.pending = null; G.choice = null;
   G.note = G.booked.length
@@ -1216,12 +1320,12 @@ function loop() {
     if (G.staffMood !== 'neutral' && Date.now() > G.staffUntil) { G.staffMood = 'neutral'; G.staffLine = '今天也要順順的！'; changed = true; }
     if (cfg().mass) {
       if (massTick()) changed = true;
-    } else if (G.spawnAcc >= cfg().spawnMs * G.spawnFactor * G.rampFactor * dynSpawnFactor() && Date.now() >= (G.restUntil || 0)) {
+    } else if (G.spawnAcc >= cfg().spawnMs * G.spawnFactor * G.rampFactor * dynSpawnFactor() && Date.now() >= (G.restUntil || 0) && !(cfg().phased && G.dayPhase >= 3)) {
       G.spawnAcc = 0;
       if (!G.front || G.queue.length + 1 < MAX_QUEUE) {
         const jumpOK = G.front && !G.jumper && G.stats.total > 3 && Math.random() < cfg().jump;
         if (jumpOK) makeJumper();
-        else if (cfg().pair && G.queue.length + 2 <= MAX_QUEUE && Math.random() < (cfg().pairChance || 0.25)) spawnPair();
+        else if (cfg().pair && !cfg().phased && G.queue.length + 2 <= MAX_QUEUE && Math.random() < (cfg().pairChance || 0.25)) spawnPair();
         else spawn();
         if (!G.choice) changed = true;
       }
@@ -1275,16 +1379,18 @@ function loop() {
     }
     if (!G.front && G.queue.length && !G.choice) { advanceFront(); changed = true; }
     // 保險：櫃台如果空著，就立刻叫一位病人
-    if (!cfg().mass && !G.front && !G.queue.length && !G.jumper && !G.choice) {
+    if (!cfg().mass && !(cfg().phased && G.dayPhase >= 3) && !G.front && !G.queue.length && !G.jumper && !G.choice) {
       G.refillAcc = (G.refillAcc || 0) + 100;
       if (G.refillAcc >= (G.refillIn || 1000)) { G.refillAcc = 0; spawn(); changed = true; }
     }
-    // 停診：第三天中途，內科臨時停診
-    if (cfg().closure && !G.closedDone && G.t <= cfg().counterMs * 0.35) {
-      G.closedDone = true; G.closed = '內科';
-      G.modal = {title: '🚫 內科臨時停診', body: '內科暫停看診，內科病人不能在內科放行，也不能轉到其他科。<br>請把他拖到藍色的「📣 通知與重新安排」，系統會記錄，之後再安排新時段。', btn: '我知道了', action: null};
-      G.note = '🚫 內科臨時停診！內科病人請通知並重新安排';
-      changed = true;
+    // 第二天分段：暖身 → 固定雙人排序 → 臨時停診任務
+    if (cfg().phased) {
+      const el = G.totalT - G.t;
+      const ph = el >= DAY2_STOP_AT ? 3 : el >= DAY2_PAIR_AT[0] ? 2 : 1;
+      if (ph > G.dayPhase) { G.dayPhase = ph; G.note = DAY2_NOTE[ph] || G.note; changed = true; if (ph === 3) startStop(); }
+      if (G.dayPhase === 2 && G.pairIdx < DAY2_PAIR_AT.length && el >= DAY2_PAIR_AT[G.pairIdx] && !G.choice && !G.front && !G.jumper) {
+        G.pairIdx++; spawnScheduledPair(); changed = true;
+      }
     }
     // 排隊走道：排隊的人耐心會慢慢減少
     if (cfg().walk) {
@@ -1534,7 +1640,7 @@ function swapQueue(i, j) {
 function closedHere(p) { return !!(G.closed && p.dept === G.closed && !p.emergency); }
 // 分診台：三間診間＋門口，拖曳病人到對應區域
 function zonesHTML() {
-  const transferring = closedHere(G.front);
+  const transferring = closedHere(G.front) || !!G.stop;
   const z = d => G.closed === d
     ? `<div class="zone closed" data-zone="${d}">❌ ${d}<br><small>停診中，不能放行</small></div>`
     : `<div class="zone" data-zone="${d}">${VAL_ICON.dept[d]} ${d}</div>`;
@@ -1559,6 +1665,7 @@ function counterHTML() {
         <div class="cu">${URG[c.urgency].label}</div>
         ${avatar(c, 'neutral', 'sm')}
         <b>${c.name}</b>
+        <small class="need">「${c.line}」</small>
         <div class="cbar"><i style="width:${Math.max(0, c.patience / CHOICE_MS * 100)}%"></i></div>
         <small>耐心剩 ${Math.ceil(c.patience / 1000)} 秒</small>
         <small class="cost">離開扣 ${URG[c.urgency].pen} 分</small>
@@ -1585,9 +1692,10 @@ function counterHTML() {
       </div>
       <div class="bar"><i id="pbar" style="width:${p.patience / G.maxPatience * 100}%"></i></div>
     </div>` : (choiceHTML || `<div class="pcard center muted" style="padding-top:70px">☕ 等待下一位病人…</div>`);
-  return `<div class="counter-scene">
+  return `<div class="counter-scene ${G.stop ? 'stopmode' : ''}">
     <div class="staffrow">${avatar(STAFF, G.staffMood, 'sm')}<div class="bubble">櫃台：「${G.staffLine}」</div></div>
     ${complaint}
+    ${stopHTML()}
     ${G.jumper ? `<div class="jump">
       <b>🙋 ${G.jumper.name}</b> 說：「${G.jumper.line}」
       <div class="btns"><button data-act="jumpyes">讓他先進（後面的人多等）</button><button class="deny" data-act="jumpno">請他排隊</button></div>
@@ -1612,6 +1720,13 @@ function counterHTML() {
     </div>`;
 }
 
+function remindStatsHTML() {
+  const used = G.booked.reduce((s, p) => s + REMIND_OPTS.find(o => o.key === p.remind).cost, 0);
+  const total = used + G.credits;
+  const exp = G.booked.reduce((s, p) => s + (1 - noShowChance(p, p.remind)), 0);
+  return `<div class="card center"><b>已使用額度：${used}／${total}</b><br><b>模擬預期到診：${exp.toFixed(1)}／${G.booked.length} 人</b>
+    <div class="muted" style="font-size:12px">預期值由每位病患的模擬機率加總，不是真實到診預測。</div></div>`;
+}
 function remindHTML() {
   const cards = G.booked.map(p => `
     <div class="card">
@@ -1627,11 +1742,17 @@ function remindHTML() {
           ${o.label}<small>${o.cost ? `${o.cost} 額度` : '免費'}｜沒來 ${pct(noShowChance(p, o.key))}</small></button>`).join('')}
       </div>
     </div>`).join('');
-  return `<p class="muted">越早提醒越有效，但也越貴。你要決定額度花在誰身上。</p>
+  return `${remindStatsHTML()}<p class="muted">越早提醒越有效，但也越貴。你要決定額度花在誰身上。</p>
     ${cards || '<div class="card center">今天沒有放行任何預約的病人（退回或急診不會有預約）😴</div>'}
     <button data-act="endremind">完成提醒，看結果</button>`;
 }
 
+function revealDeltaHTML() {
+  if (!G.booked.length) return '';
+  const d = G.booked.reduce((s, p) => s + (noShowChance(p, 'none') - noShowChance(p, p.remind)), 0);
+  return `<div class="card center"><b>這次的提醒策略，讓預期到診增加 ${d.toFixed(1)} 人。</b>
+    <div class="muted" style="font-size:12px">單次隨機結果不一定如預期。</div></div>`;
+}
 function revealHTML() {
   const cards = G.booked.map(p => `
     <div class="card ${p.arrived ? 'happy-bounce' : 'no'}" data-key="r-${p.id}">
@@ -1640,7 +1761,7 @@ function revealHTML() {
           <div class="muted">${REMIND_OPTS.find(o => o.key === p.remind).label}提醒｜沒來機率 ${pct(p.shownChance)}</div></div>
         <span class="tag ${p.arrived ? '' : 'warn'}">${p.arrived ? '✓ 準時來了' : '✗ 沒有來'}</span>
       </div></div>`).join('');
-  return `${cards || '<div class="card center">今天沒有放行任何預約的病人，所以沒有結果</div>'}
+  return `${revealDeltaHTML()}${cards || '<div class="card center">今天沒有放行任何預約的病人，所以沒有結果</div>'}
     <p class="muted center">機率低也可能沒來，這就是隨機性。</p>`;
 }
 
@@ -1675,17 +1796,17 @@ const TUTORIAL = [
      visual: `<div class="tprog ok tv-prog"><i style="width:70%"></i></div><div class="tv-note">綠色：時間充足 ／ 黃色：快沒了 ／ 紅色：即將結束</div>`},
     {title: '越來越忙', text: '每過 30 秒，病人會來得更快，耐心也會更短。<br>有人插隊時，聽他怎麼說：說很急的人要先看，不急的人請他排隊。判斷錯誤會扣分。<br>答錯會打斷連擊，並扣分、降低評價。評價是隱藏的分數，會換算成畫面上的星星。',
      visual: `<div class="tv-note">⏱ 0–30 秒：慢慢來<br>⏱ 30–60 秒：病人變多<br>⏱ 60 秒後：更快、更不耐煩</div>`},
-    {title: '提醒與到診結果', text: '櫃台結束後會進入「提醒」階段。已放行的病患可以選擇發提醒：<br>• 前一晚：1 額度，能降低爽約機率<br>• 當天早上：2 額度，降低更多<br>額度有限，請選最需要的人。之後的結果頁會顯示誰真的到診。',
+    {title: '提醒與到診結果', text: '櫃台結束後進入提醒階段。畫面上方會顯示「已使用額度」與「模擬預期到診」，每次調整提醒，預期都會更新。<br>• 前一晚：1 額度　• 當天早上：2 額度<br>揭曉後會顯示這次的提醒讓預期到診增加多少。機率只是模擬，單次結果不一定如預期。',
      visual: `<div class="tv-remind"><span>不發</span><span>前一晚（1 額度）</span><span>當天早上（2 額度）</span></div>`}
   ],
   [ // 第二天
     {title: '第二天有什麼不同', text: '第二天的放行條件固定是「科別」和「年齡層」，不會中途換條件。<br>重點是排序：櫃台常有兩位病人同時到，要先決定誰先叫。病患卡片仍會顯示掛號時段，但時段不是放行條件。',
      visual: `<div class="tv-card">${avatar(TUT_AV, 'neutral', 'sm')}<div class="tv-fields"><span>科別：小兒科</span><span>掛號：上午</span><span>年齡層：長者</span></div></div>`},
-    {title: '兩位同時到', text: '第二天經常會有兩位病患同時到櫃台。<br>① 先點一位叫他，另一位繼續排隊，耐心會變短<br>② 比較兩人的緊急程度：🔴 危急 ＞ 🟡 緊急 ＞ 🟢 一般<br>③ 較緊急的人先看，判斷正確會加分<br>④ 選好後，再幫他分配科別',
+    {title: '兩位同時到', text: '第二天會在固定時間出現幾次雙人排序（約 30–70 秒之間）。<br>① 先點一位叫他，另一位繼續排隊，耐心會變短<br>② 比較緊急程度：🔴 危急 ＞ 🟡 緊急 ＞ 🟢 一般<br>③ 同樣緊急時，先看等比較久的人（耐心剩得少）<br>④ 選好後，再幫他分配科別',
      visual: `<div class="tv-pair"><div class="tv-cand u1">🟢 一般</div><div class="tv-cand u3">🔴 危急</div></div>`},
     {title: '急診病患', text: '部分病患會標示為急診。急診病患不用看放行條件，直接拖到任一科別診間放行即可。<br>急診如果退回或放錯，扣分會比一般病患重。',
      visual: `<div class="tv-note">🚑 急診：拖到任一科別 → 放行 ✓</div>`},
-    {title: '科別臨時停診', text: '中途內科可能會臨時停診。內科病人不能在內科放行，也不能轉到其他科別。<br>把他拖到藍色的「📣 通知與重新安排」，記錄後等待安排新時段。',
+    {title: '科別臨時停診', text: '約 75 秒後會出現突發任務：內科（一般醫師門診）臨時停診。畫面會出現 4 張病患卡：<br>• 內科病人（3 位）：拖到「📣 通知與重新安排」，通知 +8；3 位都通知完成額外 +15<br>• 其他病人（1 位）：按「✅ 維持預約」，+5<br>停診期間不會再有新病人來櫃台。',
      visual: `<div class="tv-zone closed">❌ 內科 停診中</div><div class="tv-zone transfer">📣 通知與重新安排</div>`},
     {title: '預約情境', text: '有些病人的預約情境會影響沒來的機率，例如：容易忘記預約、等待時間較長、聯絡資訊可能未更新、工作時間衝突。<br>這些只是遊戲中的模擬機率，提醒可以降低沒來的機率。',
      visual: `<div class="tv-remind"><span>不發</span><span>前一晚（1 額度）</span><span>當天早上（2 額度）</span></div>`},
@@ -1695,13 +1816,13 @@ const TUTORIAL = [
   [ // 第三天：CESFAM 忙碌的一天（三個階段）
     {title: '第三天總覽', text: '這天是「預約救援大作戰」，分三個階段。每個階段開始前會先說明，按「開始」才計時；做完會顯示結果，按「繼續」才進入下一階段。<br>📩 訊息快手（60 秒）：處理病患回覆，累積 Combo<br>🧩 診位配對王（90 秒）：把候補配對到空缺，解決突發事件<br>⚡ 最後救援（45 秒）：用提醒額度處理還不確定的病患<br>拿到三星就是今日最佳診所管理員！',
      visual: `<div class="tv-note">回覆處理 → 取消與候補 → 最後提醒 → 營運報告</div>`},
-    {title: '① 看懂病患回覆', text: '病患的 WhatsApp 回覆會陸續進來。看懂內容後，選擇處理方式：<br>✅ 確認出席：病患會來（+10）<br>❌ 處理取消：時段會空出（+5）<br>📅 記錄改期：原時段空出，他要排到另一個時段（+5）<br>⏳ 待追蹤：還不確定，留到最後救援再處理<br>連續答對：連 2 次 ×2，連 3 次 +5，連 5 次 +10。',
+    {title: '① 看懂病患回覆', text: '病患的 WhatsApp 回覆會陸續進來。看懂內容後，選擇處理方式：<br>✅ 確認出席：病患會來（+10）<br>❌ 處理取消：時段會空出（+5）<br>📅 記錄改期：原時段空出，他要排到另一個時段（+5）<br>⏳ 待追蹤：還不確定，或「已經取消了」的回覆（先核對原預約，不重複取消）<br>連續答對：連 3 次 +5，連 5 次 +10。',
      visual: `<div class="tv-chat"><div class="bubble clinic">📩 診所：請問您能否出席？</div><div class="bubble pat">👤 不好意思，我想取消…</div></div>`},
-    {title: '② 把候補拖到空缺', text: '空缺出現時，把候補拖到空缺，或先點候補、再點空缺。必須同時符合：<br>• 服務相同（例如牙科）<br>• 時段相同（上午或下午）<br>• 同意接受數位通知<br>送出通知 +5，候補回覆「太好了！我可以來！」才算成功救回診位，再 +10。候補臨時不能來，時段會重新開放，不扣分。',
+    {title: '② 把候補拖到空缺', text: '空缺出現時，把候補拖到空缺，或先點候補、再點空缺。必須同時符合：<br>• 服務相同（例如牙科）<br>• 時段相同（上午或下午）<br>• 同意接受數位通知<br>送出通知 +5，候補回覆「太好了！我可以來！」才算成功救回診位，再 +10。候補臨時不能來，時段會重新開放，不扣分。<br>✨ 智慧助手：每局一次，會高亮可配對的候補並暫停回覆倒數 5 秒，但配對還是要你自己做。',
      visual: `<div class="tv-drag"><div class="tv-mini">候補：王小姐</div><span class="tv-arrow">➜</span><div class="tv-zone">空缺：牙科 上午</div></div>`},
     {title: '② 注意事項', text: '• 沒有同意數位通知的候補，不能發送。按他的「📋 待人工處理」，加入待辦 +5。<br>• 來電要求取消時，要在 10 秒內按「記錄取消」，時段才會空出，記錄成功 +5。<br>• 第二階段會有 2–3 個突發事件，例如「✨ 突然有空缺」，配對成功會有特效。',
      visual: `<div class="tv-note">📞 來電：「我今天不能來了…」<br>✅ 記錄取消 ／ 請他稍後再打</div>`},
-    {title: '③ 最後提醒', text: '只能提醒「還不確定」的病患。提醒額度會比還不確定的人少，要選最需要的人。已取消的病患不會因為提醒而變回確認；待改期的人會保留待改期狀態。',
+    {title: '③ 最後提醒', text: '只能提醒「還不確定」的病患，提醒額度比還不確定的人少，要選最需要的人。待改期的人若已有對得上的空缺，可以直接「📅 安排新時段」。已取消的病患不會因為提醒而變回確認。',
      visual: `<div class="tv-remind"><span>提醒額度 4</span><span>📣 提醒（1 額度）</span></div>`},
     {title: '營運報告', text: '三個階段結束後會看到今日成績：三星評價、救援進度、最長 Combo 與報告數字。<br>★ 完成三階段　★★ 正確率 60% 以上　★★★ 救援達標，且重大錯誤 1 次以內。<br>「確認出席率」只代表病患回覆確認的比例，不等於實際到診率。',
      visual: `<div class="tv-note">📋 到診率 ／ 已確認 ／ 已取消 ／ 重新安排成功</div>`}
@@ -1777,7 +1898,7 @@ const APPT_SUB = [
   {name: '📩 訊息快手', ms: 60000, hint: '病患回覆一則一則進來。看懂內容，選正確的處理方式，連續答對可以累積 Combo。',
     intro: '病患的 WhatsApp 回覆會陸續進來。看懂內容，選正確的處理方式。<br>連續答對可以累積 <b>Combo</b>：連 2 次 ×2，連 3 次 +5，連 5 次 +10。'},
   {name: '🧩 診位配對王', ms: 90000, hint: '把候補拖到對得上的空缺（服務、時段相同，且同意通知）。也可以先點候補，再點空缺。',
-    intro: '把候補拖到對得上的空缺：<b>服務、時段相同，且同意數位通知</b>。<br>沒同意通知的人，按「📋 待人工處理」。也可以先點候補，再點空缺。<br>本局會有 <b>2–3 個突發事件</b>：神救援、候補改變主意、突然來電、幸運配對。完成所有待辦就能提早結束。'},
+    intro: '把候補拖到對得上的空缺：<b>服務、時段相同，且同意數位通知</b>。<br>沒同意通知的人，按「📋 待人工處理」。也可以先點候補，再點空缺。<br>本局會有 <b>1–2 個突發事件</b>：神救援、候補改變主意、突然來電、幸運配對。完成所有待辦就能提早結束。'},
   {name: '⚡ 最後救援', ms: 45000, hint: '還沒確認的病患可以用提醒額度發提醒。額度有限，選最需要的人。',
     intro: '診所快關門了！還有幾件事要處理。<br>提醒額度<b>比還不確定的病患少</b>，要選最需要的人。已取消的病患不會因為提醒而變回確認。'}
 ];
@@ -1796,17 +1917,17 @@ const APPT_CARE = {
   unsure: '好的，我再想想，之後再跟你說。'
 };
 const APPT_ACT = {confirm: '✅ 確認出席', cancel: '❌ 處理取消', resched: '📅 記錄改期', track: '⏳ 待追蹤'};
-const APPT_WANT = {confirm: 'confirm', cancel: 'cancel', cancelAlready: 'cancel', resched: 'resched', unsure: 'track'};
+const APPT_WANT = {confirm: 'confirm', cancel: 'cancel', cancelAlready: 'track', resched: 'resched', unsure: 'track'};
 const APPT_WHY = {
   confirm: '病患回覆會出席，直接確認即可。',
   cancel: '病患要取消。記錄取消後，這個時段會空出來，之後可以安排候補。',
-  cancelAlready: '病患說已經取消。請記錄取消，時段才會空出來。',
+  cancelAlready: '病患說已經取消。先標記待追蹤並核對原預約狀態，不要重複取消，也不要新增空缺。',
   resched: '病患要改期。記錄改期後，原時段會空出，他要排進新的時段。',
   unsure: '病患還不確定。先標記待追蹤，最後救援時再處理，不要直接當成確認。'
 };
 // 計分（V6 第八節）
 const APPT_SCORE = {reply: 10, cancel: 5, resched: 5, send: 5, manual: 5, success: 10, call: 5, combo3: 5, combo5: 10, wrong: 5};
-const isCancel = a => a.kind === 'cancel' || a.kind === 'cancelAlready';
+const isCancel = a => a.kind === 'cancel';
 
 function apptBurst(text) {
   const d = document.createElement('div');
@@ -1839,6 +1960,7 @@ function apptInit() {
   G.apptStreak = 0; G.apptMaxStreak = 0; G.apptErr = 0; G.eventsHandled = 0;
   G.selCand = null; G.call = null; G.subEl = 0; G.speedNoted = false; G.idleAcc = 0; G.luckyWanted = false; G.luckyDone = false;
   G.apptStats = {handled: 0, confirmed: 0, cancelled: 0, rebooked: 0, reminded: 0, manual: 0};
+  G.skillLeft = 1; G.skillUntil = 0; G.skillHL = null; G.hintOn = true; G.candPage = 0; G.speedNoted = false;
   G.apptTotal = G.appts.length;
   G.apptReport = null;
   G.t = APPT_SUB[0].ms; G.totalT = G.t;
@@ -1858,7 +1980,7 @@ function apptRight(pts, title, body) {
   G.score += pts; G.stats.correct++; G.combo++; heal(1); sfx('ok');
   G.lastJudge = {ok: true, title, body, until: Date.now() + 5000};
 }
-function apptTaskDone() { return G.slots.filter(s => s.task && (s.state === 'filled' || s.state === 'manual')).length; }
+function apptTaskDone() { return G.slots.filter(s => s.task && (s.state === 'filled' || s.manualDone)).length; }
 
 // 階段 1：訊息快手
 function apptAct(id, k) {
@@ -1866,14 +1988,13 @@ function apptAct(id, k) {
   if (!a || a.state !== 'inbox' || G.sub !== 0) return;
   const want = APPT_WANT[a.kind];
   if (k !== want) return apptWrong(`這則應該選「${APPT_ACT[want]}」`, APPT_WHY[a.kind]);
-  const base = a.kind === 'confirm' || a.kind === 'unsure' ? APPT_SCORE.reply : a.kind === 'resched' ? APPT_SCORE.resched : APPT_SCORE.cancel;
+  const base = a.kind === 'confirm' || a.kind === 'unsure' || a.kind === 'cancelAlready' ? APPT_SCORE.reply : a.kind === 'resched' ? APPT_SCORE.resched : APPT_SCORE.cancel;
   G.apptStreak++; G.apptMaxStreak = Math.max(G.apptMaxStreak, G.apptStreak);
-  const mult = G.apptStreak >= 2 ? 2 : 1;
+  const mult = 1;   // V7：不再對第 2 題起雙倍，只保留連續 3、5 次的加成
   let pts = base * mult; const extra = [];
   let title = `✓ ${APPT_ACT[k]} 正確 +${pts}`;
   if (G.apptStreak === 3) { pts += APPT_SCORE.combo3; extra.push('連擊 +5'); }
   if (G.apptStreak === 5) { pts += APPT_SCORE.combo5; extra.push('連擊 +10'); title = '🔥 COMBO ×5！訊息處理高手！'; apptBurst('🔥 COMBO ×5！訊息處理高手！'); }
-  if (mult > 1) extra.unshift('Combo ×2');
   apptRight(pts, title, `${a.name}：「${APPT_CARE[a.kind]}」${extra.length ? '（' + extra.join('、') + '）' : ''}`);
   G.lastJudge.title = title.replace(/ \+\d+$/, '') + ` +${pts}`;
   G.apptStats.handled++;
@@ -1881,15 +2002,15 @@ function apptAct(id, k) {
   if (a.kind === 'unsure') a.state = 'pending';
   else {
     a.state = 'done';
+    if (a.kind === 'cancelAlready') a.final = 'verify';   // 已核對原預約，不新增空缺
     if (a.kind === 'confirm') { a.final = 'confirmed'; G.apptStats.confirmed++; }
     if (isCancel(a)) { a.final = 'cancelled'; G.apptStats.cancelled++; G.slots.push(apptSlot(a, 'freed')); }
     if (a.kind === 'resched') {
       a.final = 'rescheduling';
       const other = a.time === '上午' ? '下午' : '上午';
       G.slots.push(apptSlot(a, 'freed'));
-      const t = apptSlot(a, 'target', other);
-      G.slots.push(t);
-      G.waitlist.push({id: 'w' + a.id, name: a.name, svc: a.svc, time: other, consent: true, willing: true, fromId: a.id, slotId: t.id, event: null});
+      // 記錄改期需求：只是候補需求，不建立新時段；要等實際空缺出現才能安排
+      G.waitlist.push({id: 'w' + a.id, name: a.name, svc: a.svc, time: other, consent: true, willing: true, fromId: a.id, slotId: null, event: null, need: true});
     }
   }
   render();
@@ -1919,13 +2040,14 @@ function apptLeaveA() {
   // 額外候補數量隨機（0–2 位），可能是對不上的、沒同意通知的，或可以配對的
   for (let i = 0, n = Math.floor(Math.random() * 3); i < n; i++) G.waitlist.push(mk(pick(tasks), Math.random() < 0.6, Math.random() < 0.5));
   // 救援目標：依本局實際可成功安排的人數設定（最多 3）
-  G.rescueTarget = Math.min(3, G.waitlist.filter(c => c.consent && c.willing && tasks.some(s => s.svc === c.svc && s.time === c.time)).length);
-  G.rescued = 0;
   // 突發事件：每局 1–2 個（A 神救援、B 改變主意、C 突然來電、D 幸運配對）
-  const evs = shuffle(['A', 'B', 'C', 'D']).slice(0, Math.random() < 0.5 ? 2 : 3);
+  const evs = shuffle(['A', 'B', 'C', 'D']).slice(0, Math.random() < 0.5 ? 1 : 2);
   const rndTask = () => pick(tasks);
   if (evs.includes('A')) { const s = rndTask(); G.waitlist.push(mk(s, true, true, 'A')); }
   if (evs.includes('B')) { const s = rndTask(); G.waitlist.push(mk(s, true, false, 'B')); }
+  // 救援目標：所有候補（含事件）都確定後才計算，只計可以成功安排的人
+  G.rescueTarget = Math.min(3, G.waitlist.filter(c => c.consent && c.willing && tasks.some(s => s.svc === c.svc && s.time === c.time)).length);
+  G.rescued = 0;
   G.call = null;
   if (evs.includes('C')) G.call = {state: 'scheduled', at: 8000 + Math.floor(Math.random() * 12000), left: 0, name: pick(NAMES), svc: pick(APPT_SVC), time: pick(APPT_TIMES)};
   G.luckyWanted = evs.includes('D'); G.luckyDone = false;
@@ -1971,7 +2093,7 @@ function apptManual(cid) {
   if (!c || c.consent) return;
   const s = G.slots.find(x => x.state === 'open' && x.svc === c.svc && x.time === c.time);
   if (!s) return;
-  s.state = 'manual'; s.manualFor = c.name;
+  s.manualDone = true; s.manualFor = c.name;   // 空缺仍開放，其他符合條件的候補還能配對
   G.waitlist = G.waitlist.filter(x => x !== c);
   G.apptStats.manual++; G.selCand = null;
   apptRight(APPT_SCORE.manual, `📋 ${c.name} 已加入待辦 +${APPT_SCORE.manual}`, '已交給行政人員後續依授權程序處理。');
@@ -1986,9 +2108,10 @@ function apptResolve(s) {
     const pts = APPT_SCORE.success;
     let title = `🎉 成功救回一個診位！+${pts}`;
     let body = `${c.name}：「太好了！我可以來！」${s.svc}${s.time} 已安排。（救援 ${G.rescued}／${G.rescueTarget}）`;
-    if (c.event === 'A') { title = `⚡ 神救援！+${pts}`; body = `${c.name}：「我剛好有空！我可以去！」`; G.eventsHandled++; }
-    if (c.event === 'D') { title = `✨ 完美配對！+${pts}`; G.eventsHandled++; }
-    G.score += pts; G.stats.correct++; G.combo++; heal(1); sfx('win');
+    let bonus = 0;
+    if (c.event === 'A') { bonus = 5; title = `⚡ 神救援！+${pts + bonus}`; body = `${c.name}：「我剛好有空！我可以去！」（特殊事件 +5）`; G.eventsHandled++; }
+    if (c.event === 'D') { bonus = 5; title = `✨ 完美配對！+${pts + bonus}`; body = `突然出現的空缺剛好符合需求！（特殊事件 +5）`; G.eventsHandled++; }
+    G.score += pts + bonus; G.stats.correct++; G.combo++; heal(1); sfx('win');
     G.lastJudge = {ok: true, title, body, until: Date.now() + 5000};
     if (G.rescued >= 3) apptBurst('🏆 診位救援達人！');
   } else {
@@ -2001,7 +2124,9 @@ function apptResolve(s) {
 }
 function apptLeaveB() {
   G.call = null;
-  G.slots.forEach(s => { if (s.state === 'notified') { s.state = 'open'; s.cand = null; } });
+  // 還在等回覆的候補通知保留到第三階段，可用額度追蹤，不直接清除
+  G.pendingCand = [];
+  G.slots.forEach(s => { if (s.state === 'notified' && s.cand) { G.pendingCand.push({slot: s, cand: s.cand}); s.state = 'pendingCand'; s.cand = null; } });
   const unsureN = G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure').length;
   G.apptCredits = Math.max(1, unsureN - 1);
   G.sub = 2; G.t = APPT_SUB[2].ms; G.totalT = G.t;
@@ -2036,6 +2161,51 @@ function apptRemind(id) {
   G.note = `已發提醒給 ${a.name}（剩 ${G.apptCredits} 額度）`;
   render();
 }
+function apptFollow(i) {
+  const x = (G.pendingCand || [])[i];
+  if (!x || G.sub !== 2) return;
+  if (G.apptCredits < 1) { G.note = '追蹤額度用完了'; return render(); }
+  G.apptCredits--;
+  G.pendingCand.splice(i, 1);
+  const s = x.slot, c = x.cand;
+  if (c.willing) {
+    s.state = 'filled'; G.rescued++; G.apptStats.rebooked++;
+    if (c.fromId) { const src = G.appts.find(a => a.id === c.fromId); if (src) src.rebooked = true; }
+    G.score += APPT_SCORE.success; G.stats.correct++; heal(1); sfx('win');
+    G.lastJudge = {ok: true, title: `🎉 追蹤成功！${c.name} 會來 +${APPT_SCORE.success}`, body: `${s.svc}${s.time} 已安排。`, until: Date.now() + 5000};
+  } else {
+    s.state = 'open';
+    G.lastJudge = {ok: false, title: `${c.name}：「不好意思，我臨時不能來了。」`, body: '時段重新開放，不扣分。', until: Date.now() + 5000};
+  }
+  render();
+}
+// ✨ 智慧助手：高亮可配對的候補，並暫停已發出通知的倒數 5 秒；不會替玩家配對
+function apptSkill() {
+  if (G.sub !== 1 || G.skillLeft < 1) return;
+  G.skillLeft--;
+  G.skillUntil = Date.now() + 5000;
+  const ready = G.waitlist.filter(c => c.consent && G.slots.some(s => s.state === 'open' && s.svc === c.svc && s.time === c.time));
+  G.skillHL = ready.map(c => c.id);
+  G.selCand = null;
+  G.lastJudge = ready.length
+    ? {ok: true, title: '✨ 智慧助手啟動！', body: `${ready[0].name} 符合目前的空缺（${ready[0].svc}${ready[0].time}）。請自己點選配對。`, until: Date.now() + 5000}
+    : {ok: false, title: '✨ 智慧助手啟動！', body: '目前沒有可以配對的候補，可以等新的空缺或來電。', until: Date.now() + 5000};
+  render();
+}
+function apptHintToggle() { G.hintOn = !G.hintOn; render(); }
+function apptPage(d) { G.candPage = Math.max(0, (G.candPage || 0) + d); render(); }
+// 候補改期：有對得上的空缺時，可以直接安排（不需額度）
+function apptPlaceResched(id) {
+  const a = G.appts.find(x => x.id === id);
+  if (!a || a.final !== 'rescheduling' || a.rebooked || G.sub !== 2) return;
+  const other = a.time === '上午' ? '下午' : '上午';
+  const s = G.slots.find(x => x.state === 'open' && x.svc === a.svc && x.time === other);
+  if (!s) { G.note = '目前沒有可用的新時段'; return render(); }
+  s.state = 'filled'; a.rebooked = true; G.rescued++; G.apptStats.rebooked++;
+  G.score += APPT_SCORE.success; G.stats.correct++; heal(1); sfx('win');
+  G.lastJudge = {ok: true, title: `📅 ${a.name} 改期成功！+${APPT_SCORE.success}`, body: `已安排到 ${s.svc}${s.time}。`, until: Date.now() + 5000};
+  render();
+}
 function apptSkip(id) {
   const a = G.appts.find(x => x.id === id);
   if (!a || a.state !== 'pending' || a.kind !== 'unsure' || G.sub !== 2) return;
@@ -2050,7 +2220,9 @@ function apptFinish() {
     if (yes) G.apptStats.confirmed++;
     a.state = 'resolved';
   });
-  G.slots.forEach(s => { if (s.state === 'notified') s.state = 'open'; });
+  const candUnresolved = (G.pendingCand || []).length;
+  G.slots.forEach(s => { if (s.state === 'notified' || s.state === 'pendingCand') s.state = 'open'; });
+  G.pendingCand = [];
   const st = G.apptStats;
   const acc = G.stats.correct + G.stats.wrong ? G.stats.correct / (G.stats.correct + G.stats.wrong) : 0;
   let stars = 1;
@@ -2060,7 +2232,7 @@ function apptFinish() {
     total: G.apptTotal, confirmed: st.confirmed, cancelled: st.cancelled,
     reschedPending: G.appts.filter(a => a.final === 'rescheduling' && !a.rebooked).length,
     rebooked: st.rebooked, manual: st.manual,
-    noReply: G.appts.filter(a => a.kind === 'unsure' && a.final === 'noresp').length,
+    noReply: G.appts.filter(a => a.kind === 'unsure' && a.final === 'noresp').length + candUnresolved,
     unhandled: G.appts.filter(a => a.final === 'unhandled').length,
     reminded: st.reminded,
     confirmRate: G.apptTotal ? Math.round(st.confirmed / G.apptTotal * 100) : 0,
@@ -2107,8 +2279,10 @@ function apptTick() {
     G.idleAcc = allHandled ? (G.idleAcc || 0) + 100 : 0;
     if (G.idleAcc >= 1500) G.t = 0;
   } else if (G.sub === 1) {
+    if (G.skillHL && Date.now() >= (G.skillUntil || 0)) { G.skillHL = null; changed = true; }
+    const frozen = Date.now() < (G.skillUntil || 0);   // 智慧助手：候補回覆倒數暫停
     G.slots.forEach(s => {
-      if (s.state !== 'notified') return;
+      if (s.state !== 'notified' || frozen) return;
       s.left -= 100;
       if (s.left <= 0) { apptResolve(s); changed = true; }
     });
@@ -2133,7 +2307,7 @@ function apptTick() {
       }
     }
     // 待辦全部完成 → 提早結束；沒有可做的事 → 稍後結束
-    if (apptTaskDone() >= G.taskTotal && !G.call && !(G.luckyWanted && !G.luckyDone)) { G.idleAcc = (G.idleAcc || 0) + 100; if (G.idleAcc >= 1500) G.t = 0; }
+    if (apptTaskDone() >= G.taskTotal && !G.call && !(G.luckyWanted && !G.luckyDone) && !G.slots.some(s => s.state === 'notified')) { G.idleAcc = (G.idleAcc || 0) + 100; if (G.idleAcc >= 1500) G.t = 0; }
     else if (!apptCanAct()) { G.idleAcc = (G.idleAcc || 0) + 100; if (G.idleAcc >= 2500) G.t = 0; }
     else G.idleAcc = 0;
   } else {
@@ -2168,8 +2342,9 @@ function apptMatchHTML() {
         <div class="acts" style="margin-top:6px"><button class="act" data-act="aptcall" data-k="record">✅ 記錄取消（<span data-calltime>${Math.ceil(G.call.left / 1000)}</span> 秒）</button>
         <button class="act ghostbtn" data-act="aptcall" data-k="later">稍後再打</button></div></div>` : '';
   const slots = G.slots.length ? G.slots.map(s => {
-    const label = s.state === 'open' ? (G.selCand ? '👆 點這裡配對' : '空缺，可拖來候補')
+    const label = s.state === 'open' ? (s.manualDone ? '空缺（已有人工待辦）' : G.selCand ? '👆 點這裡配對' : '空缺，可拖來候補')
       : s.state === 'notified' ? '已通知，等待回覆…'
+      : s.state === 'pendingCand' ? '等待回覆（第三階段追蹤）'
       : s.state === 'filled' ? '✓ 已成功安排'
       : '📋 已加入待辦';
     return `<div class="slotdrop ${s.state}" data-slotdrop="${s.id}" data-act="aptslot" data-sid="${s.id}">
@@ -2177,18 +2352,26 @@ function apptMatchHTML() {
       ${s.state === 'notified' ? `<div class="bar"><i data-nbar="${s.id}" style="width:${s.left / s.total * 100}%"></i></div>` : ''}
     </div>`;
   }).join('') : '<small class="muted">目前沒有空缺</small>';
-  const cands = G.waitlist.length ? G.waitlist.map(c => {
+  const per = 3, pages = Math.max(1, Math.ceil(G.waitlist.length / per));
+  G.candPage = Math.min(G.candPage || 0, pages - 1);
+  const shown = G.waitlist.slice(G.candPage * per, G.candPage * per + per);
+  const cands = G.waitlist.length ? shown.map(c => {
     const open = G.slots.find(s => s.state === 'open' && s.svc === c.svc && s.time === c.time);
-    const fit = open ? '<small class="okc">✓ 有對得上的空缺</small>' : '<small class="muted">目前沒有對得上的空缺</small>';
+    const fit = !G.hintOn ? '' : open ? '<small class="okc">✓ 有對得上的空缺</small>' : '<small class="muted">目前沒有對得上的空缺</small>';
+    const hl = G.skillHL && G.skillHL.includes(c.id) ? 'hl' : '';
     const consent = c.consent ? '<small class="okc">✓ 同意數位通知</small>' : '<small class="warn">✗ 未同意數位通知</small>';
     const manual = !c.consent && open ? `<button class="act ghostbtn" data-act="aptmanual" data-id="${c.id}">📋 待人工處理</button>` : '';
-    return `<div class="candcard ${G.selCand === c.id ? 'selected' : ''}" data-cand="${c.id}" data-act="aptpick" data-id="${c.id}">
+    return `<div class="candcard ${G.selCand === c.id ? 'selected' : ''} ${hl}" data-cand="${c.id}" data-act="aptpick" data-id="${c.id}">
       <b>${c.name}</b><small>${c.svc}｜${c.time}</small>${consent}${fit}${manual}
     </div>`;
   }).join('') : '<small class="muted">候補名單是空的</small>';
   return `${call}<div class="dragtip">把候補拖到空缺，或先點候補再點空缺（服務、時段相同，且同意通知）</div>
     <div class="rooms-h">空缺時段</div><div class="slotgrid">${slots}</div>
-    <div class="rooms-h">候補名單</div><div class="candlist">${cands}</div>`;
+    <div class="toolrow"><button class="act" data-act="aptskill" ${G.skillLeft < 1 || G.sub !== 1 ? 'disabled' : ''}>✨ 智慧助手（剩 ${G.skillLeft}）</button>
+      <button class="act ghostbtn" data-act="apthint">💡 配對提示：${G.hintOn ? '開' : '關'}</button></div>
+    <div class="rooms-h">候補名單 <small class="muted">（${G.waitlist.length} 位）</small></div>
+    <div class="candlist fixed">${cands}</div>
+    ${pages > 1 ? `<div class="pager"><button class="act ghostbtn" data-act="aptpage" data-d="-1" ${G.candPage <= 0 ? 'disabled' : ''}>‹ 上一批</button><small>${G.candPage + 1}／${pages}</small><button class="act ghostbtn" data-act="aptpage" data-d="1" ${G.candPage >= pages - 1 ? 'disabled' : ''}>下一批 ›</button></div>` : ''}`;
 }
 function apptRemindHTML() {
   const list = G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure');
@@ -2199,11 +2382,16 @@ function apptRemindHTML() {
         <button class="act" data-act="aptremind" data-id="${a.id}" ${G.apptCredits < 1 ? 'disabled' : ''}>📣 提醒</button>
         <button class="act ghostbtn" data-act="aptskip" data-id="${a.id}">略過</button></div>`}
     </div>`).join('');
-  const holdRows = hold.map(a => `<div class="prow"><div class="pinfo"><b>${a.name}</b><small>${a.svc}｜待改期（保留）</small></div><div class="muted">不發提醒</div></div>`).join('');
+  const candRows = (G.pendingCand || []).map((x, i) => `<div class="prow">
+      <div class="pinfo"><b>${x.cand.name}</b><small>${x.slot.svc}｜${x.slot.time}｜等待回覆（候補通知）</small></div>
+      <div class="pbtns"><button class="act" data-act="aptfollow" data-i="${i}" ${G.apptCredits < 1 ? 'disabled' : ''}>📣 追蹤回覆（1 額度）</button></div>
+    </div>`).join('');
+  const holdRows = hold.map(a => { const other = a.time === '上午' ? '下午' : '上午'; const can = G.slots.some(s => s.state === 'open' && s.svc === a.svc && s.time === other);
+    return `<div class="prow"><div class="pinfo"><b>${a.name}</b><small>${a.svc}｜待改期${can ? '（已有空缺）' : '（保留）'}</small></div><div>${can ? `<button class="act" data-act="aptplace" data-id="${a.id}">📅 安排新時段</button>` : '<span class="muted">不發提醒</span>'}</div></div>`; }).join('');
   return `<div class="card center"><b>提醒額度：${G.apptCredits}</b>
       <p class="muted">只能提醒「還不確定」的病患。已取消的人不會因提醒而變回確認。</p></div>
     ${rows || '<div class="pcard center muted" style="padding:12px 0">沒有需要提醒的病患 👍</div>'}
-    ${holdRows}`;
+    ${candRows}${holdRows}`;
 }
 function apptHTML() {
   const sub = APPT_SUB[G.sub];
@@ -2222,7 +2410,8 @@ function apptHTML() {
     body = apptMatchHTML();
   } else {
     const left = G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure' && !a.reminded && !a.skipped).length;
-    progress = `診所快關門了！還有 ${left} 位待確認｜提醒額度 ${G.apptCredits}`;
+    const cn = (G.pendingCand || []).length, hd = G.appts.filter(a => a.final === 'rescheduling' && !a.rebooked).length;
+    progress = `診所快關門了！還有 ${left + cn + hd} 件事：${left} 待確認｜${cn} 候補待回覆｜${hd} 待改期｜額度 ${G.apptCredits}`;
     body = apptRemindHTML();
   }
   return `<div class="counter-scene">
@@ -2433,6 +2622,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'jumpyes') acceptJumper();
   else if (a === 'jumpno') declineJumper();
   else if (a === 'pick') pickNext(+b.dataset.i, false);
+  else if (a === 'stopkeep') stopKeep(+b.dataset.i);
   else if (a === 'remind') setRemind(b.dataset.id, b.dataset.opt);
   else if (a === 'endremind') endRemind();
   else if (a === 'nextday') nextDay();
@@ -2452,6 +2642,11 @@ document.addEventListener('click', (e) => {
   else if (a === 'aptpick') apptPick(b.dataset.id);
   else if (a === 'aptslot') apptSlotTap(b.dataset.sid);
   else if (a === 'aptmanual') apptManual(b.dataset.id);
+  else if (a === 'aptskill') apptSkill();
+  else if (a === 'apthint') apptHintToggle();
+  else if (a === 'aptpage') apptPage(+b.dataset.d);
+  else if (a === 'aptplace') apptPlaceResched(b.dataset.id);
+  else if (a === 'aptfollow') apptFollow(+b.dataset.i);
   else if (a === 'bonus') startBonus(true);
   else if (a === 'bonusfromintro') startBonus(false);
   else if (a === 'backmain') backMain();
@@ -2465,11 +2660,12 @@ function zoneAt(x, y) { const el = document.elementFromPoint(x, y); return el ? 
 document.addEventListener('pointerdown', (e) => {
   if (G.phase !== 'counter' || G.paused) return;
   let el = null, type = null, idx = -1;
-  const card = e.target.closest('[data-drag]'), cas = e.target.closest('[data-cas]'), slot = e.target.closest('[data-slot]'), cand = e.target.closest('[data-cand]');
+  const card = e.target.closest('[data-drag]'), cas = e.target.closest('[data-cas]'), slot = e.target.closest('[data-slot]'), cand = e.target.closest('[data-cand]'), stopc = e.target.closest('[data-stop]');
   if (card && G.front) { el = card; type = 'front'; }
   else if (cas) { el = cas; type = 'cas'; idx = +cas.dataset.cas; }
   else if (slot) { el = slot; type = 'slot'; idx = +slot.dataset.slot; }
   else if (cand) { el = cand; type = 'cand'; idx = cand.dataset.cand; }
+  else if (stopc) { el = stopc; type = 'stop'; idx = +stopc.dataset.stop; }
   if (!el) return;
   drag = {type, card: el, idx, x0: e.clientX, y0: e.clientY, moved: false, ghost: null};
 });
@@ -2506,6 +2702,9 @@ document.addEventListener('pointerup', (e) => {
     const sd = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-slotdrop]');
     if (sd) apptSend(d.idx, sd.dataset.slotdrop);
     else { G.note = '把候補病患拖到空缺時段'; render(); }
+  } else if (d.type === 'stop') {
+    if (z && z.dataset.zone) stopDrop(d.idx, z.dataset.zone);
+    else { G.note = '把受停診影響的病患拖到「📣 通知與重新安排」'; render(); }
   } else if (d.type === 'slot') {
     const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-slot]');
     if (target) swapQueue(d.idx, +target.dataset.slot);
