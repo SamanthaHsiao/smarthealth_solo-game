@@ -1,0 +1,2772 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一週的診所｜櫃台與提醒</title>
+<style>
+:root{--bg:#f4f7f6;--card:#fff;--ink:#1d2b29;--mute:#6b7d79;--brand:#1f8a70;--warn:#d9534f;--line:#d7e3df;--soft:#eef5f2;--gold:#f0a924}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;color:var(--ink);overflow-x:hidden;-webkit-tap-highlight-color:transparent;
+  background:linear-gradient(120deg,#e4f5ee,#f4f7f6,#e7f0fb);min-height:100vh}
+#app{max-width:480px;margin:0 auto;padding:12px 14px 40px}
+h1,h2,h3{margin:.2em 0}
+button{font:inherit;border:0;border-radius:14px;padding:14px 12px;background:var(--brand);color:#fff;cursor:pointer;width:100%;font-size:17px;margin-top:6px;transition:transform .08s}
+button:active{transform:scale(.97)}
+button:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:12px;margin-bottom:12px;box-shadow:0 3px 0 var(--line)}
+.card.no{background:#fdf3f2;border-color:#f0c4c0}
+.muted{color:var(--mute);font-size:14px}
+.center{text-align:center}
+.row{display:flex;gap:10px;align-items:center}
+.hud{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--mute);margin-bottom:6px}
+.hud b{color:var(--ink);font-size:18px}
+.stars{color:var(--gold);font-size:20px;letter-spacing:2px;display:inline-block}
+.stars.pulse{animation:pop .5s}
+.pop{animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{0%{transform:scale(.6);opacity:.3}100%{transform:scale(1);opacity:1}}
+.event{display:inline-block;background:#fff3cf;border:1px solid var(--gold);border-radius:999px;padding:6px 12px;font-size:14px;margin-bottom:10px}
+.note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px 10px;font-size:14px;margin:8px 0 12px;min-height:38px}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--brand);margin:2px 4px 0 0}
+.tag.warn{background:#fdecea;color:var(--warn)}
+.bubble{display:inline-block;background:#fff;border:2px solid var(--line);border-radius:16px;padding:6px 10px;font-size:14px;margin-top:6px;max-width:100%;position:relative}
+.complaint{background:#fdecea;color:#9b2c27;border:2px solid #f0c4c0;border-radius:16px;padding:8px 10px;font-size:15px;margin-bottom:10px;text-align:center;font-weight:700;animation:pop .35s}
+/* 櫃台 */
+.counter-scene{background:linear-gradient(#dff2ea,#f4f7f6 70%);border-radius:24px;padding:10px;margin-bottom:6px;border:2px solid #bfe0d2}
+.rulebox{background:#2f5d50;color:#fff;border:none;border-radius:16px;box-shadow:0 5px 0 #1d3f36;padding:10px 12px;text-align:center;margin-bottom:12px}
+.rulebox .muted{color:#bfe0d6}
+.rule{animation:pop .4s}
+.rule.still{animation:none}
+.ticket{background:#fffdf5;border:2px dashed #d8c9a3;border-radius:12px;padding:12px 14px 8px;position:relative;color:#2f5d50;margin:10px 0 12px}
+.ticket .hole{position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:34px;height:14px;border-radius:0 0 14px 14px;background:#2f5d50}
+.ticket h4{margin:2px 0 6px;text-align:center;font-size:13px;color:#8a7a52;letter-spacing:1px}
+.trow{display:flex;justify-content:space-between;align-items:center;border-bottom:1px dotted #cdbd93;padding:7px 2px;font-size:15px;font-weight:700}
+.trow:last-child{border-bottom:none}
+.trow b{font-size:19px;font-weight:900}
+.tfoot{text-align:center;font-size:12px;color:#8a7a52;margin-top:4px}
+.sticky{background:#ffe9a8;color:#6b4e00;border-radius:4px 4px 14px 4px;padding:8px 12px;transform:rotate(-1.2deg);box-shadow:0 3px 0 rgba(0,0,0,.2);font-weight:700;font-size:14px;margin:4px auto 10px;max-width:300px}
+.ptag{display:inline-block;background:#fff;color:#6b8f85;border:2px dashed #bfe0d6;border-radius:999px;padding:3px 10px;font-size:13px;font-weight:700;margin:2px}
+.ptag.on{background:#ffeab5;color:#6b4e00;border:2px solid #f0a924}
+.jump{background:#fff6dc;border:2px solid #f0c24b;border-radius:14px;padding:8px 10px;margin-bottom:8px;text-align:center;font-size:15px;animation:pop .35s}
+.jump .btns{margin-top:6px}
+.or{text-align:center;font-size:12px;color:#8a7a52;font-weight:800;margin:-2px 0}
+.sticky.closed{background:#ffd6d6;color:#8a1f1f}
+.pick{display:flex;align-items:center;gap:10px;justify-content:flex-start;width:100%;margin:6px 0}
+[data-drag]{touch-action:none;cursor:grab}
+#app{padding-bottom:240px}
+.zones{position:fixed;left:0;right:0;bottom:0;z-index:60;background:#e9f6f1;border-top:2px solid #bfe0d6;padding:6px 8px 10px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;box-shadow:0 -4px 12px rgba(0,0,0,.08)}
+.zone{background:#fff;border:2px dashed #8fc9b5;border-radius:12px;padding:8px 2px;font-weight:800;color:#2f5d50;font-size:15px;text-align:center;transition:background .15s;min-height:84px;display:flex;align-items:center;justify-content:center}
+.zone.door{background:#ffe1e1;border-color:#e0a0a0;color:#8a1f1f}
+.zone.over{background:#ffeab5;border-color:#f0a924;transform:scale(1.03)}
+.cas small{display:block;font-size:12px;color:#8a1f1f;margin:2px 0}
+.zone.closed{background:#eeeeee;border:2px solid #d9534f;color:#8a1f1f;text-decoration:none}
+.lane{display:flex;gap:6px;overflow-x:auto;padding:8px;background:#e6f3ee;border-radius:12px;margin:8px 0}
+.slot{min-width:78px;background:#fff;border-radius:10px;padding:4px;text-align:center;border:2px dashed #bfe0d6;touch-action:none;cursor:grab}
+.slot small{display:block;font-size:11px;font-weight:700}
+.slot .bar,.bed .bar,.cas .bar{height:6px;margin-top:4px}
+.disaster{background:#fff1f1;border:2px solid #e0a0a0;border-radius:14px;padding:8px;margin:8px 0;color:#8a1f1f}
+.disaster h4{margin:0 0 6px;text-align:center}
+.beds{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bed{background:#fff;border:2px dashed #e0a0a0;border-radius:10px;padding:6px;text-align:center;font-weight:800;font-size:13px;min-height:70px}
+.bed.on{border-style:solid;background:#ffe9e9}
+.bed small{display:block;font-size:11px;color:#a06060}
+.cas-row{display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap}
+.cas{background:#fff;border:2px solid #d9534f;border-radius:10px;padding:6px 8px;font-weight:800;font-size:13px;touch-action:none;cursor:grab;min-width:110px;text-align:center}
+.dragtip{grid-column:1 / -1;font-size:12px;color:#6b8f85;text-align:center;font-weight:700;margin-bottom:2px}
+/* 分數變化：明顯的加減分提示 */
+.scorechip{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:999px;font-weight:900;font-size:14px;color:#fff;animation:scpop .5s ease-out}
+.scorechip.pos{background:#1f8a70}
+.scorechip.neg{background:#d9534f}
+@keyframes scpop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.15);opacity:1}100%{transform:scale(1)}}
+.scorehist{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 6px;font-size:12px;font-weight:800}
+.scorehist span{padding:2px 8px;border-radius:999px;background:#f4f7f6;border:1px solid #d7e3df;max-width:100%}
+.scorehist span.pos{color:#1f6f58;border-color:#9fd6c2;background:#e4f7ea}
+.scorehist span.neg{color:#8a1f1f;border-color:#f0b4b4;background:#fdeaea}
+/* 第三天：緊湊版面，減少上下捲動 */
+.prow{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:2px solid #d7e3df;border-radius:12px;padding:6px 8px;margin:6px 0}
+.pinfo{min-width:0;flex:1}
+.pinfo b{font-size:15px;display:block}
+.pinfo small{font-size:12px;color:#5a7a72;font-weight:700;line-height:1.35}
+.pbtns{display:flex;gap:6px;flex-shrink:0}
+.pbtns button{font-size:13px;padding:7px 9px;margin:0;border-radius:10px}
+button.ghostbtn{background:#fff;color:#2f5d50;border:2px solid #d7e3df}
+.candlist{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.candcard{flex:0 0 auto;min-width:130px}
+.slotdrop{padding:6px 8px;margin:4px 0}
+.msgcard{padding:6px;margin:6px 0}
+.msgcard .acts{gap:4px}
+button,[data-act]{touch-action:manipulation;-webkit-user-select:none;user-select:none}
+[data-drag],[data-cas],[data-slot],[data-cand],[data-slotdrop]{touch-action:none;-webkit-user-select:none;user-select:none}
+.ghost{position:fixed;z-index:90;pointer-events:none;width:220px;opacity:.92;transform:rotate(-3deg);box-shadow:0 12px 24px rgba(0,0,0,.25);margin:0}
+.emg{background:#d9534f;color:#fff;border-radius:10px;padding:4px 8px;font-weight:800;text-align:center;margin-bottom:6px;animation:pop .4s}
+.pills{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.pill{font-size:12px;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.18);color:#e6f4ef}
+.pill.on{background:#fff;color:#2f5d50;font-weight:700}
+.pcard{border:2px solid #cfe3dc;box-shadow:0 4px 0 #cfe3dc;background:linear-gradient(#fffdf6,#fff);border-radius:20px;padding:12px;min-height:170px}
+.pcard.arrive{animation:arrive .45s cubic-bezier(.2,1.4,.4,1)}
+@keyframes arrive{from{transform:translateY(-14px) scale(.96);opacity:0}to{transform:none;opacity:1}}
+.fields{display:flex;flex-direction:column;gap:4px;margin-top:6px;font-size:16px}
+.fields span{padding:2px 8px;border-radius:10px;background:#f3f8f6;width:fit-content}
+.bar{height:12px;background:var(--line);border-radius:8px;overflow:hidden;margin-top:12px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#1f8a70,#5cc4a0);border-radius:8px}
+.bar i.low{background:linear-gradient(90deg,#d9534f,#f0a924)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.btns button{font-size:22px;padding:22px 8px;box-shadow:0 5px 0 rgba(0,0,0,.18)}
+.btns button:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.btns .deny{background:var(--warn)}
+.queue{display:flex;align-items:flex-end;gap:2px;margin-top:12px;min-height:44px}
+.qp{display:inline-block}
+.av{display:block;overflow:visible}
+.av.sm{width:56px;height:77px}
+.av.xs{width:34px;height:47px}
+.staffrow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.staffrow .bubble{font-size:14px;margin-top:0}
+.walk .av{animation:bob .6s ease-in-out infinite alternate}
+.walk .swing-l{animation:swingL .6s ease-in-out infinite alternate}
+.walk .swing-r{animation:swingR .6s ease-in-out infinite alternate}
+.swing-l,.swing-r{transform-box:view-box}
+@keyframes bob{to{transform:translateY(-3px)}}
+@keyframes swingL{to{transform:rotate(-20deg)}}
+@keyframes swingR{to{transform:rotate(20deg)}}
+.happy-bounce .av{animation:hop .6s ease-in-out 2}
+@keyframes hop{50%{transform:translateY(-8px)}}
+/* 提醒 */
+.odds{font-size:13px;color:var(--mute);margin-top:6px}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+.seg button{background:#fff;color:var(--ink);border:2px solid var(--line);font-size:14px;padding:10px 4px;margin:0}
+.seg button.on{background:var(--soft);border-color:var(--brand);color:var(--brand);font-weight:700}
+.seg small{display:block;font-size:11px;color:var(--mute);margin-top:2px}
+.seg button.on small{color:var(--brand)}
+/* 升級 */
+.up{display:block;text-align:left;background:#fff;color:var(--ink);border:2px solid var(--brand);border-radius:18px;padding:14px;margin-bottom:10px;font-size:18px;font-weight:700;box-shadow:0 4px 0 var(--brand)}
+.up small{display:block;color:var(--mute);font-size:14px;margin-top:4px;font-weight:normal}
+.up:active{transform:translateY(3px);box-shadow:0 1px 0 var(--brand)}
+/* 特效 */
+.fx-ok{animation:okp .8s ease-out}
+@keyframes okp{0%{box-shadow:0 0 0 0 rgba(31,138,112,.7)}100%{box-shadow:0 0 0 18px rgba(31,138,112,0)}}
+.fx-bad{animation:shake .45s}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+.float{position:fixed;pointer-events:none;font-weight:800;font-size:24px;animation:floatup 1.2s ease-out forwards;z-index:50;text-shadow:0 2px 0 #fff}
+@keyframes floatup{to{transform:translateY(-60px);opacity:0}}
+.stamp{position:fixed;left:50%;top:40%;font-size:46px;font-weight:900;border:5px solid;padding:6px 18px;border-radius:14px;z-index:70;pointer-events:none;background:rgba(255,255,255,.8);transform:translate(-50%,-50%) rotate(-12deg);animation:stampin .7s ease-out forwards}
+.stamp.ok{color:var(--brand);border-color:var(--brand)}
+.stamp.bad{color:var(--warn);border-color:var(--warn)}
+@keyframes stampin{0%{transform:translate(-50%,-50%) scale(2.2) rotate(-12deg);opacity:0}30%{opacity:1}100%{transform:translate(-50%,-50%) scale(1) rotate(-12deg);opacity:0}}
+.burst{position:fixed;left:50%;top:22%;transform:translateX(-50%);font-size:30px;font-weight:900;color:#fff;background:linear-gradient(90deg,#f0a924,#e0557a,#7b5cd6);padding:10px 22px;border-radius:999px;z-index:75;white-space:nowrap;pointer-events:none;animation:burstin 1.1s ease-out forwards;box-shadow:0 6px 0 rgba(0,0,0,.15)}
+@keyframes burstin{0%{transform:translateX(-50%) scale(.3);opacity:0}20%{transform:translateX(-50%) scale(1.15);opacity:1}30%{transform:translateX(-50%) scale(1)}80%{opacity:1}100%{transform:translateX(-50%) translateY(-20px);opacity:0}}
+.conf{position:fixed;top:-20px;width:9px;height:13px;z-index:60;animation:fall 2.6s linear forwards;border-radius:2px}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+.ghost-p{position:fixed;z-index:45;pointer-events:none;display:flex;flex-direction:column;align-items:center;animation:outR .9s ease-in forwards}
+.ghost-p.gl{animation-name:outL}
+.ghost-p .gbubble{background:#fff;border:2px solid var(--line);border-radius:14px;padding:4px 10px;font-size:14px;white-space:nowrap;margin-bottom:4px;font-weight:700}
+@keyframes outR{0%{transform:none;opacity:1}100%{transform:translateX(160px) rotate(8deg);opacity:0}}
+@keyframes outL{0%{transform:none;opacity:1}30%{transform:translateX(-10px)}100%{transform:translateX(-170px) rotate(-6deg);opacity:0}}
+.mute{position:fixed;top:8px;right:8px;width:auto;margin:0;padding:6px 12px;font-size:18px;background:#fff;color:var(--ink);border:2px solid var(--line);border-radius:999px;z-index:80}
+.marquee{display:flex;gap:18px;justify-content:center;align-items:flex-end;margin:6px 0 14px}
+
+/* v15：縮小放行條件區，讓病人卡和分診區更突出 */
+.rulebox{padding:6px 8px;margin-bottom:6px}
+.ticket{padding:6px 10px 4px;margin:4px 0 6px}
+.ticket h4{font-size:12px;margin:0 0 2px}
+.trow{padding:3px 2px;font-size:14px}
+.trow b{font-size:16px}
+.tfoot{display:none}
+.sticky{font-size:12px;padding:4px 10px;margin:2px auto 5px;max-width:320px}
+.ptag{font-size:11px;padding:1px 7px;margin:1px}
+.staffrow{margin-bottom:4px}
+.staffrow .av.sm{width:44px;height:61px}
+.staffrow .bubble{font-size:12px;padding:4px 10px}
+.pcard{padding:8px 10px}
+.pcard .bubble{font-size:13px}
+.zone{min-height:84px;font-size:19px;border-width:3px}
+.zones{padding:6px 8px 8px}
+.dragtip{font-size:11px}
+#app{padding-bottom:240px}
+.note:empty{display:none}
+.pair{background:#fff;border-radius:16px;padding:10px;margin:6px 0;box-shadow:0 4px 0 #bfd9cf;animation:pop .35s}
+.pair.still{animation:none}
+.pair-h{text-align:center;font-size:16px;font-weight:900;color:#2f5d50;margin-bottom:8px}
+.pair-row{display:flex;gap:10px}
+.pcand{flex:1;min-width:0;border-radius:16px;padding:8px 6px;text-align:center;border:3px solid;cursor:pointer;background:#fff;display:flex;flex-direction:column;align-items:center;gap:2px}
+.pcand:active{transform:scale(.97)}
+.pcand.u1{border-color:#7bc47f;background:#f1fbf1}
+.pcand.u2{border-color:#f0a924;background:#fff7e4}
+.pcand.u3{border-color:#d9534f;background:#ffeeee}
+.pcand .cu{font-size:13px;font-weight:900;color:#2f5d50}
+.pcand b{font-size:16px}
+.pcand small{font-size:12px;color:#5a7a72;font-weight:700}
+.pcand .cost{color:#8a1f1f}
+.cbar{width:100%;height:8px;background:#e3ece9;border-radius:999px;overflow:hidden;margin:2px 0}
+.cbar i{display:block;height:100%;background:#1f8a70}
+.bar.big{height:10px;margin-top:8px}
+
+/* v18：第三天 START 檢傷 */
+.zones.tri{grid-template-columns:repeat(3,1fr)}
+.zone.tri-red{background:#ffe1e1;border-color:#d9534f;color:#8a1f1f}
+.zone.tri-yellow{background:#fff3c4;border-color:#f0a924;color:#7a5200}
+.zone.tri-green{background:#dff5e3;border-color:#5cb85c;color:#1f5f2a}
+.judge{border-radius:14px;padding:8px 10px;margin:6px 0;font-size:14px;font-weight:700;line-height:1.5;animation:pop .3s}
+.judge b{font-size:15px}
+.judge.ok{background:#e4f7ea;border:2px solid #5cb85c;color:#1f5f2a}
+.judge.bad{background:#ffe9e9;border:2px solid #d9534f;color:#8a1f1f}
+.judge.idle{background:#fff;border:2px dashed #bfe0d6;color:#5a7a72;text-align:center}
+.tcard{background:#fff;border:2px solid #d7e3df;border-radius:14px;padding:8px 10px;margin:6px 0;touch-action:none;cursor:grab}
+.tcard .thead{display:flex;justify-content:space-between;align-items:center;font-size:16px}
+.clues{display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:13px;margin:6px 0;font-weight:700}
+.clues .warn{color:#d9534f}
+.tcard .bar{height:6px}
+.rooms-h{font-size:13px;font-weight:900;color:#6b4e00;margin:8px 0 4px;text-align:center}
+.bays{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bay{background:#fff;border:2px dashed #e0a0a0;border-radius:10px;padding:6px;text-align:center;font-weight:800;font-size:13px;min-height:72px}
+.bay.on{border-style:solid;background:#ffe9e9}
+.bay small{display:block;font-weight:700;font-size:11px;color:#a06060}
+.bay .bar{height:6px}
+.waitrow{margin:6px 0;text-align:center}
+.waitchip{display:inline-block;background:#fff;border:2px solid #d7e3df;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:800;margin:2px}
+
+/* 第一階段：教學、進度條、暫停 */
+.hudright{display:flex;align-items:center;gap:8px}
+.pausebtn{width:auto;margin:0;padding:4px 12px;font-size:13px;border-radius:999px;background:#5b6f6a}
+.tprog{height:12px;background:#dfe9e5;border-radius:999px;overflow:hidden;margin:6px 0 4px;border:2px solid #fff;box-shadow:0 1px 0 #cfdcd7}
+.tprog i{display:block;height:100%;border-radius:999px;transition:width .2s linear}
+.tprog.ok i{background:linear-gradient(90deg,#5cc08a,#33a86f)}
+.tprog.warn i{background:linear-gradient(90deg,#f7c04a,#f0a924)}
+.tprog.crit i{background:linear-gradient(90deg,#ef7a6f,#d9534f);animation:blink .8s steps(2,start) infinite}
+@keyframes blink{to{opacity:.35}}
+.tut{text-align:center}
+.tut-step{font-size:13px;font-weight:800;color:#6b8f85}
+.tut h2{font-size:22px;margin:6px 0}
+.tut p{font-size:16px;line-height:1.6;margin:8px 0}
+.tut-vis{min-height:110px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin:8px 0;background:#f4faf7;border-radius:14px;padding:10px}
+.tut-dots{display:flex;gap:8px;justify-content:center}
+.tut-dots span{width:10px;height:10px;border-radius:50%;background:#cfe3dc}
+.tut-dots span.on{background:var(--brand)}
+.tut-tip{font-size:13px}
+.tut-nav{display:flex;gap:8px}
+.tut-nav button{margin-top:6px}
+.btn-ghost{background:#e4efea !important;color:var(--ink) !important}
+button.link{background:none;color:var(--mute);font-size:14px;text-decoration:underline;width:100%;margin-top:6px}
+.tv-card{display:flex;align-items:center;gap:10px;background:#fff;border:2px solid var(--line);border-radius:12px;padding:6px 10px}
+.tv-fields{display:flex;flex-direction:column;font-size:14px;font-weight:700;text-align:left}
+.tv-drag{display:flex;align-items:center;gap:10px}
+.tv-mini{background:#fff;border:2px solid var(--line);border-radius:12px;padding:4px}
+.tv-arrow{font-size:22px;color:var(--brand);font-weight:900}
+.tv-zone{background:#fff;border:2px dashed #8fc9b5;border-radius:12px;padding:8px 14px;font-weight:800;color:#2f5d50}
+.tv-zone.closed{background:#eee;border:2px solid #d9534f;color:#8a1f1f}
+.tv-prog{width:80%}
+.tv-note{font-size:13px;color:#5a7a72;font-weight:700}
+.tv-pair{display:flex;gap:10px}
+.tv-cand{padding:8px 12px;border-radius:12px;font-weight:900;border:3px solid}
+.tv-cand.u1{border-color:#7bc47f;background:#f1fbf1}
+.tv-cand.u3{border-color:#d9534f;background:#ffeeee}
+.tv-remind{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;font-size:13px;font-weight:800}
+.tv-remind span{background:#fff;border:2px solid var(--line);border-radius:999px;padding:4px 10px}
+.tv-tri,.tv-bays{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.tv-tri span,.tv-bays span{padding:6px 10px;border-radius:12px;font-weight:800;font-size:14px;border:2px solid}
+.tv-tri .tri-red{background:#ffe1e1;border-color:#d9534f}
+.tv-tri .tri-yellow{background:#fff3c4;border-color:#f0a924}
+.tv-tri .tri-green{background:#dff5e3;border-color:#5cb85c}
+.tv-bays span{background:#fff;border-color:var(--line)}
+.tv-judge{margin:0 auto;max-width:280px;text-align:left}
+.pausecard button{margin-top:8px}
+
+.zone.transfer{background:#e3f1ff;border:3px dashed #3b82c4;color:#1f4f7a}
+.zone.transfer small{font-size:12px;font-weight:700}
+.transfer-tag{background:#e3f1ff !important;color:#1f4f7a !important;border:2px solid #3b82c4}
+
+/* 第二、三階段：預約管理與 Bonus */
+.subhead{font-weight:900;text-align:center;font-size:17px;color:#2f5d50;margin:4px 0}
+.subdots{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin:4px 0}
+.sd{font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px;background:#eef5f2;color:#7a9a92;border:2px solid #d7e3df}
+.sd.now{background:#ffeab5;border-color:#f0a924;color:#6b4e00}
+.sd.done{background:#e4f7ea;border-color:#5cb85c;color:#1f5f2a}
+.taskprog{font-size:13px;font-weight:800;color:#5a7a72;text-align:center;margin:4px 0}
+.msgcard{background:#fff;border:2px solid #d7e3df;border-radius:14px;padding:8px;margin:8px 0}
+.bubble.clinic{background:#e8eef7;border-radius:12px;padding:6px 10px;font-size:14px;font-weight:700;color:#2d4a6b;margin:4px 0}
+.bubble.pat{background:#dff5e3;border-radius:12px;padding:6px 10px;font-size:14px;font-weight:700;color:#1f5f2a;margin:4px 0;text-align:right}
+.bubble.sys{background:#f1f1f1;border-radius:12px;padding:6px 10px;font-size:13px;color:#777;margin:4px 0;text-align:center}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
+button.act{font-size:14px;padding:10px 6px;margin:0;border-radius:12px}
+button.act:disabled{opacity:.4}
+.slotdrop{background:#fff;border:2px dashed #8fc9b5;border-radius:12px;padding:8px;margin:6px 0;text-align:center}
+.slotdrop b{display:block;font-size:15px}
+.slotdrop small{font-weight:700;font-size:12px}
+.slotdrop.notified{border-color:#f0a924;background:#fff7e4}
+.slotdrop.filled{border-color:#5cb85c;background:#e4f7ea}
+.candlist{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+#app.appt-day{padding-bottom:0}
+#app.appt-day .event{font-size:12px;padding:3px 10px;margin-bottom:4px}
+#app.appt-day .note{padding:4px 8px;font-size:12px;margin:4px 0}
+#app.appt-day .candcard{padding:4px 6px;min-width:118px}
+#app.appt-day .slotgrid .slotdrop{padding:4px 5px}
+.slotgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.slotgrid .slotdrop{margin:0;padding:5px 6px}
+.slotgrid .slotdrop b{font-size:13px}
+.slotgrid .slotdrop small{font-size:11px}
+.slotgrid .bar{margin-top:3px}
+.candcard{background:#fff;border:2px solid #7bb3d9;border-radius:12px;padding:6px 8px;min-width:140px;touch-action:none;cursor:grab;display:flex;flex-direction:column}
+.candcard b{font-size:15px}
+.candcard small{font-size:12px;font-weight:700}
+.okc{color:#1f8a70}
+.ok{color:#1f8a70;font-weight:900}
+.warn{color:#d9534f;font-weight:900}
+.reportgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.rcell{background:#f4faf7;border-radius:12px;padding:8px;text-align:center}
+.rcell b{display:block;font-size:20px;color:#2f5d50}
+.rcell small{font-size:12px;color:#5a7a72;font-weight:700}
+.tv-chat{display:flex;flex-direction:column;gap:4px;width:100%;max-width:300px}
+.candcard.selected{outline:3px solid #f0a924;outline-offset:2px}
+.stopbox{background:#fff3f0;border:2px solid #e8a79b;border-radius:16px;padding:8px 10px;margin:6px 0}
+.stopbox small{display:block;color:#7a4a40;font-weight:700}
+.srow{display:flex;align-items:center;gap:6px;background:#fff;border-radius:12px;padding:6px 8px;margin:4px 0;border:2px dashed #e8a79b;cursor:grab;touch-action:none}
+.srow.done{opacity:.6;border-style:solid}
+.srow b{flex:1;font-size:14px}
+.srow small{font-size:12px;color:#5a7a72}
+.need{display:block;font-size:12px;color:#5a7a72;font-style:italic;max-width:110px;margin:0 auto}
+.counter-scene.stopmode .staffrow,.counter-scene.stopmode .rulebox,.counter-scene.stopmode .queue{display:none}
+.counter-scene.stopmode .srow{padding:4px 8px;margin:3px 0}
+.srow .act{padding:3px 8px;font-size:12px;margin:0;width:auto}
+.counter-scene.stopmode .stopbox > small{display:none}
+.counter-scene.stopmode .srow small{display:block}
+#app:has(.stopmode) .event{display:none}
+#app:has(.stopmode) .zone{padding:6px 4px;font-size:13px;min-height:0}
+.counter-scene.stopmode{padding:6px}
+.counter-scene.stopmode .stopbox{padding:5px 7px;margin:3px 0}
+.counter-scene.stopmode .pcard{padding-top:8px!important}
+#app:has(.pair) .event{display:none}
+#app:has(.pair) .zone{padding:6px 4px;font-size:13px;min-height:0}
+#app:has(.pair) .staffrow{display:none}
+#app:has(.pair) .pcand{padding:6px 4px}
+#app:has(.pair) .pcand small.need{display:none}
+#app:has(.pair) .pair{padding:6px 8px;margin:2px 0}
+#app:has(.pair) .dragtip{display:none}
+.candcard.hl{box-shadow:0 0 0 3px #7fd3b8,0 0 14px #7fd3b8;animation:pop .4s}
+.candlist.fixed{display:flex;gap:4px;overflow:hidden}
+.candlist.fixed .candcard{flex:1;min-width:0;padding:6px 5px}
+.candlist.fixed .candcard b{font-size:13px}
+.toolrow{display:flex;gap:6px;justify-content:center;margin:4px 0}
+.toolrow .act{margin:0;padding:5px 8px;font-size:12px}
+.pager{display:flex;align-items:center;justify-content:center;gap:8px;margin:2px 0}
+.pager .act{margin:0;padding:4px 8px;font-size:12px}
+#app:has(.callcard) .dragtip,#app:has(.callcard) .rooms-h{display:none}
+#app:has(.slotgrid) .judge{padding:6px 8px;margin:4px 0}
+#app:has(.slotgrid) .judge b{font-size:14px}
+#app:has(.slotgrid) .judge div{font-size:12px}
+#app:has(.slotgrid) .candcard small{font-size:11px}
+
+.ptag.fresh{animation:tagfresh .6s ease 3}
+@keyframes tagfresh{0%{transform:scale(1.25);box-shadow:0 0 0 3px #f5c542}100%{transform:none;box-shadow:none}}
+.tv-step{background:var(--card,#fff);border:1px solid #e3d9c6;border-radius:12px;padding:8px 10px;font-size:13px}
+.tv-step .tv-h{font-weight:700;margin:4px 0}
+.tv-step .tv-rule{background:#fff7e0;border-radius:8px;padding:6px 8px;margin:4px 0}
+.tv-step .tv-pt{display:flex;align-items:center;gap:6px;background:#eef6ff;border-radius:8px;padding:6px 8px;margin:4px 0}
+.tv-step .tv-zones{display:flex;gap:6px;flex-wrap:wrap}
+.tv-step .tv-zones span{flex:1;min-width:90px;text-align:center;border:1px dashed #9aa;border-radius:8px;padding:6px 4px}
+.tv-step .tv-zones span.ok{border-color:#2a9d5c;background:#eaf8f0;font-weight:700}
+
+
+.cdwrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(20,40,35,.5);z-index:50;color:#fff;pointer-events:none}
+.cdnum{font-size:120px;font-weight:900;line-height:1;text-shadow:0 6px 24px rgba(0,0,0,.35);animation:cdpop .9s ease-out}
+.cdwrap small{font-size:20px;font-weight:700;margin-top:8px}
+@keyframes cdpop{0%{transform:scale(1.6);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(.9);opacity:.2}}
+</style>
+</head>
+<body>
+<button id="mute" class="mute" data-act="sound">🔊</button>
+<div id="app"></div>
+
+<script>
+/* ================= 設定 ================= */
+const DEPTS = ['內科', '小兒科', '牙科'];
+const PERIODS = ['上午', '下午'];
+const AGES = ['兒童', '成人', '長者'];
+const VISITS = ['初診', '複診'];
+const NAMES = ['王小明','陳美玲','林志豪','黃雅婷','張家豪','李佩珊','吳承恩','蔡怡君','劉建宏','周淑芬','許哲瑋','鄭宜庭'];
+const PALETTE = ['#f0a04b','#4b9ce2','#e07a9b','#7bc47f','#9b8ee0','#e8c547'];
+const HAIRS = ['#3a2a20','#1f1f1f','#8a5a2b','#c0392b','#6d4c41'];
+const LINES = [
+  '我昨天就想來了。', '帶小孩來看病，好累。', '只是想拿個藥而已。',
+  '拜託快一點，我還要上班。', '我有點怕看牙……', '醫生說要回來複診。',
+  '我已經排很久了。', '等一下要去接小孩。', '我想換個時間來。'
+];
+const THANKS = ['謝謝你！', '太好了！', '辛苦你了～', '謝啦！'];
+const OKAY = ['好吧……', '那我改天再來。', '知道了。'];
+const RULE_NAME = {dept:'科別', period:'掛號時段', age:'年齡層', visit:'就診類型'};
+const PHASE_NAME = {tutorial:'教學', counter:'櫃台', remind:'提醒', reveal:'結果', dayend:'今天結束', upgrade:'選擇升級'};
+
+// pool：可出現的條件；size：同時要符合幾條；switchMs：多久換一組；jump：插隊機率
+// noshow：今天的爽約規則（符合的病人容易爽約）；emergency：急診機率
+// 第一天三段：0–20 秒 / 20–45 秒 / 45–75 秒，條件逐步增加；病人出現間隔 4 → 4.5 → 5.5 秒
+const DAY1_STAGES = [
+  {keys: ['dept'], spawnMs: 4000, end: 20000, newKey: null, banner: ''},
+  {keys: ['dept', 'period'], spawnMs: 4500, end: 45000, newKey: 'period', banner: '🆕 新條件：時段（放行條件與病人卡都要看時段）'},
+  {keys: ['dept', 'period', 'age'], spawnMs: 5500, end: 75000, newKey: 'age', banner: '🆕 新條件：年齡（三個條件都要符合，要多花點時間判斷）'}
+];
+const DAY_CFG = [
+  {pool:['dept','period','age'], size:3, stages:true, jump:0.15, counterMs:75000, spawnMs:4000, ramp:false, credits:4, risk:0.30, emergency:0,
+   event:'第一天：分三段，每段多一個條件，條件和病人一起出現。'},
+  {pool:['dept','age'], size:2, switchMs:9000, jump:0, choose:true, risk:0.2, pair:true, phased:true, closure:false, counterMs:120000, spawnMs:4000, ramp:true, credits:3, emergency:0.12,
+   event:'第二天：先決定誰先叫；內科臨時停診時，把內科病人拖到「內科」轉診。'},
+  {appt:true, pool:[], size:0, switchMs:0, jump:0, counterMs:225000, spawnMs:4000, credits:0, risk:0, emergency:0,
+   event:'第三天：CESFAM 忙碌的一天。處理病患回覆、安排空缺時段、最後發提醒。'},
+  {mass:true, pool:['dept','period','age','visit'], size:3, switchMs:7000, jump:0, counterMs:90000, spawnMs:4000, ramp:true, credits:0, risk:0, emergency:0,
+   event:'Bonus：大型事故挑戰。依 START 檢傷法把傷患分成 🔴立即 🟡延遲 🟢輕傷，再送進對應的治療區。'}
+];
+const DAYS = ['星期一','星期二','星期三'];
+function dayTag() { return G.day === 3 ? 'Bonus 大型事故挑戰' : `第 ${G.day + 1} 天 ${DAYS[G.day]}`; }
+const RULE_SWITCH_MS = 5000;
+const PATIENCE_MS = 10000;
+const CHOICE_MS = 15000;   // 兩位病人同時到櫃台時，選擇的時間
+const MAX_QUEUE = 4;
+const REMIND_MS = 45000;
+const REVEAL_MS = 7000;
+// 第二天分段（V7）：暖身 0–30 秒；固定雙人排序 30–75 秒（5 組）；臨時停診任務 75 秒起
+const DAY2_PAIR_AT = [20000, 30000, 40000, 50000, 60000, 70000];
+const DAY2_STOP_AT = 75000;
+const DAY2_NOTE = {2: '🚦 新挑戰！現在你要決定誰先處理！', 3: '🚫 突發任務：一般醫師門診（內科）上午臨時停診！有幾位病患需要處理！'};
+const COMPLAINT_MS = 2500;
+const MAX_STARS = 5;
+const REMIND_OPTS = [
+  {key:'none', label:'不發', cost:0, factor:1},
+  {key:'night', label:'前一晚', cost:1, factor:0.6},
+  {key:'morning', label:'當天早上', cost:2, factor:0.35}
+];
+// 失約情境（虛構的預約管理情境，只影響遊戲中的模擬機率）
+const APPT_REASONS = [
+  {label: '容易忘記預約', add: 0.15},
+  {label: '預約等待時間較長', add: 0.12},
+  {label: '聯絡資訊可能未更新', add: 0.15},
+  {label: '工作時間與預約衝突', add: 0.12},
+  {label: '尚未確認是否能出席', add: 0.1}
+];
+// 每天結束後可以選的升級（隨機抽三個）
+const UPGRADES = [
+  {name:'加派一位櫃檯', desc:'來客速度變慢 20%', apply(){ G.spawnFactor *= 1.25; }},
+  {name:'提醒額度 +1', desc:'之後每天多一點提醒額度', apply(){ G.creditBonus += 1; }},
+  {name:'快速叫號', desc:'病人願意多等 2 秒', apply(){ G.patienceBonus += 2000; }},
+  {name:'評價修復', desc:'診所評價立即 +2 星', apply(){ heal(40); }},
+  {name:'連擊保險', desc:'下一次判斷錯誤不會打斷連擊', apply(){ G.comboShield += 1; }}
+];
+
+/* ================= 共用工具 ================= */
+const $ = (s) => document.querySelector(s);
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const shuffle = (a) => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
+const uid = () => Math.random().toString(36).slice(2, 9);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const pct = (x) => Math.round(x * 100) + '%';
+const stars = (n) => '★'.repeat(n) + '☆'.repeat(MAX_STARS - n);
+// 評價：內部是 0–100 的數值，每 20 點換算一顆星。錯誤只扣一小部分，逾時才明顯下降
+function hurt(n) { G.rep = Math.max(0, (G.rep ?? 100) - n); syncStars(); }
+function heal(n) { G.rep = Math.min(100, (G.rep ?? 100) + n); syncStars(); }
+function syncStars() { G.stars = Math.max(0, Math.min(MAX_STARS, Math.ceil((G.rep ?? 100) / 20))); }
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+}
+
+function avatarLegacy(p, mood = 'neutral', cls = '') {
+  const mouth = {
+    happy: 'M24 33 Q30 40 36 33', sad: 'M24 38 Q30 32 36 38',
+    worried: 'M25 37 Q30 34 35 37', neutral: 'M25 35 L35 35'
+  }[mood] || 'M25 35 L35 35';
+  const brow = (mood === 'worried' || mood === 'sad')
+    ? '<path d="M21 22 L26 24 M39 22 L34 24" stroke="#2b2b2b" stroke-width="1.6" stroke-linecap="round"/>' : '';
+  const c = p.color || '#999';
+  return `<svg class="av ${cls}" viewBox="0 0 60 90" width="60" height="90">
+    <rect class="swing-l" x="10" y="46" width="8" height="22" rx="4" fill="${c}"/>
+    <rect class="swing-r" x="42" y="46" width="8" height="22" rx="4" fill="${c}"/>
+    <rect x="18" y="44" width="24" height="30" rx="10" fill="${c}"/>
+    <rect x="20" y="72" width="8" height="16" rx="3" fill="#44505c"/>
+    <rect x="32" y="72" width="8" height="16" rx="3" fill="#44505c"/>
+    <circle cx="30" cy="28" r="16" fill="#f5d0b0"/>
+    <path d="M14 26 Q30 2 46 26 Q40 14 30 14 Q20 14 14 26Z" fill="${p.hair || '#3a2a20'}"/>
+    <circle cx="24" cy="27" r="2.2" fill="#2b2b2b"/>
+    <circle cx="36" cy="27" r="2.2" fill="#2b2b2b"/>
+    ${brow}
+    <path d="${mouth}" stroke="#2b2b2b" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+
+/* ================= 角色（v9：年齡、髮型、配件、表情） ================= */
+const STAFF = {role:'staff', color:'#1f8a70', hair:'#3a2a20', hairStyle:'bun', age:'成人', visit:'複診'};
+function avatar(p, mood = 'neutral', cls = '') {
+  const isStaff = p.role === 'staff';
+  const child = !isStaff && p.age === '兒童';
+  const elder = !isStaff && p.age === '長者';
+  const skin = '#f5d0b0', ink = '#2b2b2b', c = p.color || '#999';
+  const hair = elder ? '#d9d9d9' : (p.hair || '#3a2a20');
+  const style = p.hairStyle || 'short';
+  const cx = 40, hr = child ? 19 : 16.5, cy = child ? 38 : 32;
+  const bodyTop = child ? 58 : 50, bodyH = child ? 26 : 32, bodyW = child ? 24 : 28;
+  const bw = bodyW / 2, legTop = bodyTop + bodyH - 2, legH = child ? 16 : 22;
+  const armY = bodyTop + 4, armH = bodyH - 8;
+  const ex = 6, ey = cy + 1;
+  const handL = [cx - bw - 1.5, armY + armH + 2], handR = [cx + bw + 1.5, armY + armH + 2];
+  const stroke = (d, w = 2) => `<path d="${d}" stroke="${ink}" stroke-width="${w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const dots = (r) => `<circle cx="${cx - ex}" cy="${ey}" r="${r}" fill="${ink}"/><circle cx="${cx + ex}" cy="${ey}" r="${r}" fill="${ink}"/>`;
+
+  // 腿
+  const legs = `<rect x="${cx - bw + 4}" y="${legTop}" width="7" height="${legH}" rx="3.5" fill="#44505c"/>
+    <rect x="${cx + bw - 11}" y="${legTop}" width="7" height="${legH}" rx="3.5" fill="#44505c"/>
+    <ellipse cx="${cx - bw + 7.5}" cy="${legTop + legH}" rx="5" ry="2.6" fill="${ink}"/>
+    <ellipse cx="${cx + bw - 7.5}" cy="${legTop + legH}" rx="5" ry="2.6" fill="${ink}"/>`;
+
+  // 身體（櫃台人員穿白袍）
+  const torso = isStaff
+    ? `<rect x="${cx - bw}" y="${bodyTop}" width="${bodyW}" height="${bodyH}" rx="10" fill="#fff" stroke="${c}" stroke-width="2"/>
+       <rect x="${cx - 2.5}" y="${bodyTop + 2}" width="5" height="${bodyH - 4}" fill="${c}" opacity=".3"/>
+       <rect x="${cx + 2}" y="${bodyTop + 7}" width="9" height="6" rx="1.5" fill="${c}"/>`
+    : `<rect x="${cx - bw}" y="${bodyTop}" width="${bodyW}" height="${bodyH}" rx="10" fill="${c}"/>
+       <path d="M${cx - 5} ${bodyTop} L${cx} ${bodyTop + 7} L${cx + 5} ${bodyTop}" fill="#fff" opacity=".85"/>`;
+
+  // 手臂與手
+  const armFill = isStaff ? '#fff' : c;
+  const armStroke = isStaff ? `stroke="${c}" stroke-width="1.5"` : '';
+  const arms = `<rect x="${cx - bw - 5}" y="${armY}" width="7" height="${armH}" rx="3.5" fill="${armFill}" ${armStroke}/>
+    <rect x="${cx + bw - 2}" y="${armY}" width="7" height="${armH}" rx="3.5" fill="${armFill}" ${armStroke}/>
+    <circle cx="${handL[0]}" cy="${handL[1]}" r="3.5" fill="${skin}"/>
+    <circle cx="${handR[0]}" cy="${handR[1]}" r="3.5" fill="${skin}"/>`;
+
+  // 配件：小孩拿棒棒糖、長者拿拐杖、初診病人拿病歷夾
+  let acc = '';
+  if (child) {
+    acc = `<line x1="${handR[0]}" y1="${handR[1]}" x2="${handR[0] + 4}" y2="${handR[1] - 16}" stroke="#8a5a2b" stroke-width="1.8"/>
+      <circle cx="${handR[0] + 4}" cy="${handR[1] - 19}" r="5" fill="#ff6f91" stroke="#fff" stroke-width="1.5"/>`;
+  } else if (elder) {
+    acc = `<line x1="${handR[0]}" y1="${handR[1]}" x2="${handR[0]}" y2="${legTop + legH}" stroke="#8a5a2b" stroke-width="2.4" stroke-linecap="round"/>`;
+  } else if (!isStaff && p.visit === '初診' && cfg().mass) {
+    acc = `<rect x="${cx - bw - 14}" y="${armY + 7}" width="12" height="15" rx="2" fill="#fff" stroke="#8a7f6b" stroke-width="1.4"/>
+      <line x1="${cx - bw - 11}" y1="${armY + 12}" x2="${cx - bw - 5}" y2="${armY + 12}" stroke="#b9b09b" stroke-width="1.2"/>
+      <line x1="${cx - bw - 11}" y1="${armY + 16}" x2="${cx - bw - 5}" y2="${armY + 16}" stroke="#b9b09b" stroke-width="1.2"/>`;
+  }
+
+  // 後面的頭髮
+  let hairBack = '';
+  if (style === 'long') hairBack = `<rect x="${cx - hr - 3}" y="${cy - 4}" width="${2 * hr + 6}" height="24" rx="9" fill="${hair}"/>`;
+  else if (style === 'bun') hairBack = `<ellipse cx="${cx}" cy="${cy - 3}" rx="${hr + 1}" ry="${hr}" fill="${hair}"/><circle cx="${cx}" cy="${cy - hr - 3}" r="6.5" fill="${hair}"/>`;
+  else if (style === 'curly') hairBack = [[-14, -9], [0, -17], [14, -9], [-16, 3], [16, 3]].map(([dx, dy]) => `<circle cx="${cx + dx}" cy="${cy + dy}" r="7" fill="${hair}"/>`).join('');
+  else hairBack = `<ellipse cx="${cx}" cy="${cy - 3}" rx="${hr + 1}" ry="${hr}" fill="${hair}"/>`;
+
+  // 瀏海（蓋在臉上方）
+  const fringe = style === 'curly' ? '' :
+    `<path d="M${cx - hr} ${cy - 2} Q${cx - hr + 3} ${cy - hr - 2} ${cx} ${cy - hr + 3} Q${cx + hr - 3} ${cy - hr - 2} ${cx + hr} ${cy - 2} Q${cx + hr - 7} ${cy - hr + 7} ${cx} ${cy - hr + 7} Q${cx - hr + 7} ${cy - hr + 7} ${cx - hr} ${cy - 2}Z" fill="${hair}"/>`;
+
+  const ears = `<circle cx="${cx - hr}" cy="${cy + 2}" r="3" fill="${skin}"/><circle cx="${cx + hr}" cy="${cy + 2}" r="3" fill="${skin}"/>`;
+  const face = `<circle cx="${cx}" cy="${cy}" r="${hr}" fill="${skin}"/>`;
+
+  // 表情
+  let eyes = dots(2.1), brows = '', mouth = '', extra = '', blush = '';
+  switch (mood) {
+    case 'happy':
+      eyes = stroke(`M${cx - ex - 2.5} ${ey} q2.5 -3 5 0 M${cx + ex - 2.5} ${ey} q2.5 -3 5 0`);
+      mouth = `<path d="M${cx - 5} ${cy + 7} Q${cx} ${cy + 14} ${cx + 5} ${cy + 7} Z" fill="#c0504d" stroke="${ink}" stroke-width="1.5" stroke-linejoin="round"/>`;
+      blush = `<circle cx="${cx - 10}" cy="${cy + 5}" r="3" fill="#ff8fa3" opacity=".5"/><circle cx="${cx + 10}" cy="${cy + 5}" r="3" fill="#ff8fa3" opacity=".5"/>`;
+      break;
+    case 'worried':
+      brows = stroke(`M${cx - ex - 3} ${ey - 4} L${cx - ex + 3} ${ey - 6} M${cx + ex + 3} ${ey - 4} L${cx + ex - 3} ${ey - 6}`, 1.8);
+      mouth = stroke(`M${cx - 5} ${cy + 9} q2.5 -2.5 5 0 t5 0`, 1.8);
+      extra = `<path d="M${cx + hr - 1} ${cy - 6} q3 5 0 7 q-3 -2 0 -7z" fill="#8fd3ff"/>`;
+      break;
+    case 'sad':
+      brows = stroke(`M${cx - ex - 3} ${ey - 4} L${cx - ex + 3} ${ey - 6} M${cx + ex + 3} ${ey - 4} L${cx + ex - 3} ${ey - 6}`, 1.8);
+      mouth = stroke(`M${cx - 5} ${cy + 11} Q${cx} ${cy + 7} ${cx + 5} ${cy + 11}`, 1.8);
+      extra = `<path d="M${cx - ex} ${ey + 3} q-2 4 0 5 q2 -1 0 -5z" fill="#8fd3ff"/>`;
+      break;
+    case 'angry':
+      brows = stroke(`M${cx - ex - 3} ${ey - 6} L${cx - ex + 3} ${ey - 3} M${cx + ex + 3} ${ey - 6} L${cx + ex - 3} ${ey - 3}`, 2.2);
+      eyes = dots(1.8);
+      mouth = stroke(`M${cx - 5} ${cy + 11} Q${cx} ${cy + 7} ${cx + 5} ${cy + 11}`, 2);
+      extra = `<path d="M${cx + hr - 3} ${cy - hr + 6} l3 -3 M${cx + hr} ${cy - hr + 10} l3 -1 M${cx + hr - 4} ${cy - hr + 2} l1 -4" stroke="#d9534f" stroke-width="1.8" stroke-linecap="round"/>`;
+      break;
+    case 'impatient':
+      eyes = stroke(`M${cx - ex - 2.5} ${ey} h5 M${cx + ex - 2.5} ${ey} h5`, 2.2);
+      brows = stroke(`M${cx - ex - 3} ${ey - 5} h6 M${cx + ex - 3} ${ey - 5} h6`, 1.8);
+      mouth = stroke(`M${cx - 4} ${cy + 9} l8 -1`, 2);
+      extra = `<text x="${cx + hr - 3}" y="${cy - hr + 2}" font-size="9" font-weight="700" fill="#6b7d79">…</text>`;
+      break;
+    default:
+      mouth = stroke(`M${cx - 4} ${cy + 9} h8`, 2);
+  }
+
+  // 眼鏡（長者與櫃台人員）
+  const glasses = (elder || isStaff)
+    ? `<circle cx="${cx - ex}" cy="${ey}" r="4.4" fill="none" stroke="#555" stroke-width="1.3"/>
+       <circle cx="${cx + ex}" cy="${ey}" r="4.4" fill="none" stroke="#555" stroke-width="1.3"/>
+       <line x1="${cx - ex + 4.4}" y1="${ey}" x2="${cx + ex - 4.4}" y2="${ey}" stroke="#555" stroke-width="1.2"/>`
+    : '';
+
+  // 口罩（流感季）
+  const mask = p.mask
+    ? `<path d="M${cx - 8} ${cy + 5} Q${cx} ${cy + 9} ${cx + 8} ${cy + 5} L${cx + 7} ${cy + 13} Q${cx} ${cy + 16} ${cx - 7} ${cy + 13} Z" fill="#cdeefc" stroke="#8fc9e6" stroke-width="1"/>`
+    : '';
+
+  return `<svg class="av ${cls}" viewBox="0 0 80 110" width="72" height="99" aria-hidden="true">
+    <ellipse cx="40" cy="106" rx="22" ry="3.5" fill="rgba(0,0,0,.12)"/>
+    ${legs}${torso}${arms}${acc}
+    ${hairBack}${ears}${face}${blush}${eyes}${brows}${glasses}${mouth}${mask}${fringe}${extra}
+  </svg>`;
+}
+
+/* ================= 音效（用瀏覽器內建的合成音，不需要檔案） ================= */
+let AC = null;
+let soundOn = (() => { try { return localStorage.getItem('clinic-sound') !== 'off'; } catch (e) { return true; } })();
+function audio() {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+  if (AC && AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, dur = 0.12, type = 'triangle', vol = 0.14, when = 0) {
+  if (!soundOn) return;
+  const ac = audio(); if (!ac) return;
+  const t0 = ac.currentTime + when;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(vol, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur + 0.02);
+}
+const SFX = {
+  ok() { tone(784, 0.16, 'sine', 0.09); tone(1046, 0.2, 'sine', 0.07, 0.07); },
+  bad() { tone(220, 0.2, 'sawtooth', 0.08); tone(165, 0.25, 'sawtooth', 0.08, 0.12); },
+  combo(n) {
+    const base = 392 * Math.pow(2, (Math.min(n, 16) % 12) / 12);
+    [0, 4, 7, 12, 16].forEach((s, i) => tone(base * Math.pow(2, s / 12), 0.18, 'square', 0.06, i * 0.06));
+  },
+  star() { tone(988, 0.12); tone(1319, 0.2, 'triangle', 0.14, 0.1); },
+  leave() { tone(330, 0.15, 'triangle', 0.1); tone(262, 0.25, 'triangle', 0.1, 0.12); },
+  reveal() { tone(523, 0.1); },
+  upgrade() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.16, 'triangle', 0.12, i * 0.08)); },
+  win() { [523, 659, 784, 1046, 784, 1046].forEach((f, i) => tone(f, 0.2, 'triangle', 0.14, i * 0.1)); },
+  lose() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.25, 'triangle', 0.12, i * 0.15)); }
+};
+function sfx(name, ...a) { try { SFX[name](...a); } catch (e) {} }
+function toggleSound() {
+  soundOn = !soundOn;
+  try { localStorage.setItem('clinic-sound', soundOn ? 'on' : 'off'); } catch (e) {}
+  $('#mute').textContent = soundOn ? '🔊' : '🔇';
+  if (soundOn) sfx('reveal');
+}
+
+/* ================= 排行榜（本機） ================= */
+// 主線與 Bonus 分開排行榜（計畫書 3.6）：不同模式的分數不混合排名
+const LB_KEYS = {main: 'clinic-leaderboard', bonus: 'clinic-leaderboard-bonus'};
+const LB_TITLE = {main: '主線排行榜', bonus: 'Bonus 排行榜'};
+function loadLB(kind = 'main') {
+  try { return JSON.parse(localStorage.getItem(LB_KEYS[kind]) || '[]'); }
+  catch (e) { return []; }
+}
+function saveLB(list, kind = 'main') {
+  try { localStorage.setItem(LB_KEYS[kind], JSON.stringify(list)); } catch (e) {}
+}
+function leaderboardHTML(kind = 'main') {
+  const list = loadLB(kind);
+  if (!list.length) return `<p class="muted center">${LB_TITLE[kind]}還是空的，來挑戰第一名吧！</p>`;
+  return `<div class="card"><h3>🏆 ${LB_TITLE[kind]}（本機前 5 名）</h3>
+    <ol style="padding-left:22px;margin:6px 0;line-height:1.8">
+      ${list.slice(0, 5).map(x => `<li>${escapeHTML(x.name)}：<b>${x.score}</b> 分</li>`).join('')}
+    </ol></div>`;
+}
+function leaderboardFormHTML(kind = 'main') {
+  if (G.saved) return '<p class="muted center">已記錄到' + LB_TITLE[kind] + '</p>' + leaderboardHTML(kind);
+  return `<div class="card"><h3>記錄到${LB_TITLE[kind]}</h3>
+    <input id="pname" maxlength="8" placeholder="輸入名字"
+      style="width:100%;font:inherit;padding:12px;border-radius:12px;border:2px solid var(--line)">
+    <button data-act="savescore">記錄</button></div>`;
+}
+function saveScore() {
+  const input = $('#pname');
+  const name = ((input && input.value) || '').trim().slice(0, 8) || '玩家';
+  const kind = G.day === 3 ? 'bonus' : 'main';
+  const list = loadLB(kind);
+  list.push({name, score: G.score});
+  list.sort((a, b) => b.score - a.score);
+  saveLB(list.slice(0, 5), kind);
+  G.saved = true;
+  render();
+}
+
+/* ================= 遊戲狀態 ================= */
+let G = null;
+let fxQ = [];
+let seenIds = new Set();
+
+function newGame() {
+  G = {
+    phase: 'intro', day: 0, t: 0, totalT: 0, paused: false, tutPage: 0, quitArmed: false,
+    rules: [], ruleIdx: 0, open: {}, ruleAcc: 0, spawnAcc: 0,
+    queue: [], front: null, booked: [],
+    credits: 0, combo: 0, score: 0, stars: MAX_STARS,
+    note: '', complaint: null, complaintUntil: 0,
+    grade: '', rate: 0, accuracy: 0, saved: false,
+    spawnFactor: 1, creditBonus: 0, patienceBonus: 0, maxPatience: PATIENCE_MS, comboShield: 0,
+    upgradeChoices: [], lastUpgrade: '',
+    staffMood: 'neutral', staffLine: '今天也要順順的！', staffUntil: 0,
+    stats: {total: 0, correct: 0, wrong: 0, timeout: 0, booked: 0, arrived: 0, noshow: 0}
+  };
+  G.rep = 100; syncStars();
+  G.bonusUnlocked = readUnlock(); G.apptReport = null; G.mainDone = false;
+  seenIds = new Set();
+  render();
+}
+
+function cfg() { return DAY_CFG[G.day]; }
+// 目前的病人出現間隔：第一天依段數，其他天用設定值
+function spawnBase() {
+  if (cfg().stages) return DAY1_STAGES[Math.max(0, G.stageIdx || 0)].spawnMs;
+  return cfg().spawnMs;
+}
+// 病人卡片上要顯示的資訊：第一、二天不顯示初診／複診（資訊太多），年齡層依目前的條件而定；Bonus 維持全部
+function shownKeys() {
+  if (cfg().mass) return ['dept', 'period', 'age', 'visit'];
+  // 第一天：病人卡只顯示目前生效的條件，段落切換後要等下一位病人才會出現新欄位
+  if (cfg().stages) return G.rules.filter(k => k !== 'visit');
+  return (G.poolNow || cfg().pool).filter(k => k !== 'visit');
+}
+function others(arr, v) { return arr.filter(x => x !== v); }
+function noshowHit(p) { return Object.entries(G.noshow || {}).every(([k, v]) => fieldOf(p, k) === v); }
+function rangeOf(r) {
+  if (r === 'dept') return DEPTS;
+  if (r === 'period') return PERIODS;
+  if (r === 'age') return AGES;
+  return VISITS;
+}
+function fieldOf(p, r) {
+  if (r === 'dept') return p.dept;
+  if (r === 'period') return p.period;
+  if (r === 'age') return p.age;
+  return p.visit;
+}
+// 且：全部符合；或：符合任一條即可；停診的科別一律不符合
+function matchesAll(p) {
+  if (G.closed && p.dept === G.closed) return false;
+  return G.mode === 'or'
+    ? G.rules.some(r => fieldOf(p, r) === G.open[r])
+    : G.rules.every(r => fieldOf(p, r) === G.open[r]);
+}
+// 掛號單樣式：每個條件一行，值前面有小圖示
+const VAL_ICON = {
+  dept: {內科: '🩺', 小兒科: '🧸', 牙科: '🦷'},
+  period: {上午: '☀️', 下午: '🌇'},
+  age: {兒童: '👶', 成人: '🧑', 長者: '👵'},
+  visit: {初診: '🆕', 複診: '🔁'}
+};
+const KEY_ICON = {dept: '🩺', period: '🕐', age: '🧑', visit: '📋'};
+// 緊急程度：離開時的扣分與評價損失
+const URG = {1: {label: '🟢 一般', pen: 3, star: 0}, 2: {label: '🟡 緊急', pen: 5, star: 1}, 3: {label: '🔴 危急', pen: 8, star: 2}};
+const SITES = ['頭部', '胸部', '腹部', '四肢'];   // 四間治療室依序對應
+const SITE_INFO = {
+  頭部: {icon: '🧠', room: '神經外科'},
+  胸部: {icon: '🫁', room: '胸腔外科'},
+  腹部: {icon: '🩸', room: '一般外科'},
+  四肢: {icon: '🦴', room: '骨科'}
+};
+const CAT_NAME = {red: '🔴 立即', yellow: '🟡 延遲', green: '🟢 輕傷'};
+const TREAT = {red: 5000, yellow: 4000, green: 2500};        // 治療時間（毫秒）
+const WAIT_MS = {red: 8000, yellow: 12000, green: 15000};    // 分完類後在候診區能等多久
+const MISS_PEN = {red: {pen: 8, star: 1}, yellow: {pen: 4, star: 0}, green: {pen: 2, star: 0}};
+function bayInit() {
+  return [
+    {kind: 'red', p: null, left: 0}, {kind: 'red', p: null, left: 0},
+    ...SITES.map(site => ({kind: 'site', site, p: null, left: 0}))
+  ];
+}
+function bayName(b) { return b.kind === 'red' ? '急救床' : SITE_INFO[b.site].room; }
+function ruleHTML() {
+  const rows = G.rules.map(r => `<div class="trow"><span>${RULE_NAME[r]}</span><b>${VAL_ICON[r][G.open[r]]} ${G.open[r]}</b></div>`);
+  return rows.join('');
+}
+
+function flashQ(key, kind, text = '') { fxQ.push({key, kind, text}); }
+
+function setComplaint(text) {
+  G.complaint = text;
+  G.complaintUntil = Date.now() + COMPLAINT_MS;
+}
+
+/* 櫃台人員的表情與台詞 */
+function setStaff(correct, pass) {
+  G.staffMood = correct ? 'happy' : 'worried';
+  G.staffUntil = Date.now() + 1200;
+  G.staffLine = correct
+    ? pick(pass ? ['好，請到那邊等。', '謝謝，下一位！'] : ['好，請慢走。', '下一位請。'])
+    : pick(['唉，再看一次條件。', '不對喔…注意一下！']);
+}
+
+/* 蓋章、連擊爆發、五彩紙屑 */
+function stamp(text, ok) {
+  const d = document.createElement('div');
+  d.className = 'stamp ' + (ok ? 'ok' : 'bad');
+  d.textContent = text;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 750);
+}
+function confetti(n) {
+  const cols = ['#1f8a70', '#f0a924', '#e0557a', '#3b82f6', '#7b5cd6'];
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement('div');
+    d.className = 'conf';
+    d.style.left = (Math.random() * 100) + 'vw';
+    d.style.background = pick(cols);
+    d.style.animationDelay = (Math.random() * 0.5) + 's';
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 4000);
+  }
+}
+function comboBurst(n) {
+  const d = document.createElement('div');
+  d.className = 'burst';
+  d.textContent = n >= 12 ? `🔥 連擊 ×${n}！神級櫃台` : n >= 8 ? `⚡ 連擊 ×${n}！超強` : `✨ 連擊 ×${n}！`;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1100);
+  confetti(n >= 8 ? 40 : 22);
+  sfx('combo', n);
+}
+
+/* 病人離開櫃台的動畫（開心往右走、生氣往左走） */
+function ghostLeave(p, mood, dir, text) {
+  const el = document.querySelector('[data-key="front"]');
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  const d = document.createElement('div');
+  d.className = 'ghost-p' + (dir === 'left' ? ' gl' : '');
+  d.style.left = (r.left + r.width / 2 - 40) + 'px';
+  d.style.top = (r.top + 10) + 'px';
+  d.innerHTML = `<div class="gbubble">${escapeHTML(text)}</div>${avatar(p, mood, 'sm')}`;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 950);
+}
+
+/* 產生一位病人；一半機率符合目前的規則 */
+const FIT_RATE = 0.5;   // 每位病人符合目前規則的機率
+function newPatient() {
+  const p = {
+    id: uid(), name: pick(NAMES), line: pick(LINES),
+    dept: pick(DEPTS), period: pick(PERIODS), age: pick(AGES), visit: pick(VISITS),
+    risk: 0, history: Math.random() < 0.4, color: pick(PALETTE), hair: pick(HAIRS),
+    patience: G.maxPatience, remind: 'none', arrived: null
+  };
+  // 急診：不用預約，要立刻放行
+  // 緊急程度 1–3；第三天耐心有差，選下一位時才有取捨
+  p.urgency = pick([1, 2, 3]);
+  if (cfg().choose) p.patience = Math.round(G.maxPatience * (0.5 + Math.random() * 0.5));
+  G.seenCount = (G.seenCount || 0) + 1;
+  if (G.day === 0 && G.seenCount <= 3) p.patience = Math.round(p.patience * 1.3);
+  if (Math.random() < (cfg().emergency || 0)) { p.emergency = true; p.patience = 4000; p.urgency = 3; }
+  p.mask = G.day === 2 && Math.random() < 0.5;
+  p.patience = Math.round(p.patience * (G.patFactor || 1));   // 人潮變多，病患耐心也變短
+  G.stats.total++;
+  return p;
+}
+
+// 病人走到櫃台時，才依「當下」的規則決定符合與否，避免排隊時規則已經換掉
+function applyFit(p) {
+  const fit = Math.random() < FIT_RATE;
+  if (G.mode === 'or') {
+    // 或：符合時只有一條對，其餘都不對；不符合時全部都不對
+    const ok = fit ? pick(G.rules) : null;
+    for (const r of G.rules) p[r] = r === ok ? G.open[r] : pick(others(rangeOf(r), G.open[r]));
+  } else {
+    for (const r of G.rules) p[r] = G.open[r];
+    // 且：不符合時只讓其中一條不對，比較公平
+    if (!fit) { const bad = pick(G.rules); p[bad] = pick(others(rangeOf(bad), G.open[bad])); }
+  }
+  // 停診後，內科病人會比較多
+  if (G.closed && Math.random() < 0.3) p.dept = G.closed;
+  // 沒來機率：有爽約規則的關卡，符合規則的人高很多（看得到原因，不是純隨機）
+  if (cfg().noshow) {
+    p.ruleHit = noshowHit(p);
+    p.risk = clamp((p.ruleHit ? 0.65 : 0.12) + (Math.random() * 0.06 - 0.03), 0.05, 0.85);
+  } else {
+    // 失約風險來自預約情境（虛構，不代表真實 CESFAM 病患風險）
+    p.reason = Math.random() < 0.35 ? pick(APPT_REASONS) : null;
+    p.risk = clamp(cfg().risk + (p.history ? 0.12 : 0) + (p.reason ? p.reason.add : 0) + (Math.random() * 0.04 - 0.02), 0.05, 0.85);
+  }
+  if (p.emergency) p.risk = 0;
+  p.hairStyle = p.age === '長者' ? 'grey' : p.age === '兒童' ? pick(['curly', 'bun', 'short']) : pick(['short', 'long', 'bun']);
+}
+
+// 每位新病人走到櫃台：換一組新規則，再依新規則決定這位病人的條件（一條規則對應一位病人）
+function onNewFront() {
+  G.ruleAcc = 0;
+  rotateRule();
+  if (G.front) applyFit(G.front);
+}
+function spawn() {
+  const p = newPatient();
+  if (!G.front && !G.choice) { G.front = p; onNewFront(); } else G.queue.push(p);
+}
+// 兩人同時到：記為同一組，之後只會出現一次「先看誰」的選擇
+function spawnPair() {
+  const g = uid();
+  const a = newPatient(), b = newPatient();
+  a.group = b.group = g;
+  if (!G.front && !G.choice && !G.jumper) {
+    G.choice = [a, b]; G.choiceLeft = CHOICE_MS;
+    G.choice.forEach(c => { c.patience = Math.round(c.patience * CHOICE_MS / G.maxPatience); });
+  } else G.queue.push(a, b);
+}
+
+// 第二天固定雙人排序：到了指定時間且櫃台空著時出現
+function spawnScheduledPair() {
+  const g = uid(); const a = newPatient(), b = newPatient();
+  a.group = b.group = g;
+  G.choice = [a, b]; G.choiceLeft = CHOICE_MS;
+  G.choice.forEach(c => { c.patience = Math.round(c.patience * CHOICE_MS / G.maxPatience); });
+}
+// 第二天臨時停診任務：4 位病人（3 位內科受影響、1 位不受影響），混在一般佇列裡一位一位來
+function startStop() {
+  const used = new Set([G.front && G.front.name, ...(G.choice || []).map(c => c.name), ...G.queue.map(q => q.name)].filter(Boolean));
+  const mk = (dept, aff) => {
+    let p; do { p = newPatient(); } while (used.has(p.name));
+    used.add(p.name); p.dept = dept; p.stopAff = aff; p.fromStop = true; return p;
+  };
+  const cards = [mk('內科', true), mk('內科', true), mk('內科', true), mk(pick(['小兒科', '牙科']), false)];
+  G.stop = {cards, notified: 0, need: 3};
+  G.evt = null;
+  G.queue.unshift(...shuffle(cards));
+  if (!G.front && !G.choice && G.queue.length) { G.front = G.queue.shift(); onNewFront(); }
+  G.note = DAY2_NOTE[3];
+}
+function stopWrong(msg) {
+  G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad');
+  stamp('錯誤 ✗', false); G.scoreWhy = '停診任務判斷錯誤'; G.note = msg;
+}
+// 停診病人來到櫃台時：內科病人拖到「內科」轉診；其他病人照原本的科別放行
+function stopFront(p, zone) {
+  const S = G.stop;
+  if (p.stopAff) {
+    if (zone !== '內科') { stopWrong(`${p.name} 是內科停診，請拖到「內科」轉診`); return render(); }
+    S.notified++;
+    G.score += 8; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+    G.stats.resched = (G.stats.resched || 0) + 1;
+    G.rescheduleQ = G.rescheduleQ || []; G.rescheduleQ.push({name: p.name, dept: p.dept});
+    stamp('已轉診 ✓', true); G.scoreWhy = '內科停診轉診';
+    G.note = `已轉診 ${p.name} +8（${Math.min(S.notified, S.need)}／${S.need}）`;
+    if (S.notified === S.need) { G.score += 15; G.note = '🎉 內科停診處理完成！額外 +15 分'; sfx('win'); confetti(30); }
+  } else {
+    if (zone !== p.dept) { stopWrong(`${p.name} 不受停診影響，請拖到${p.dept}`); return render(); }
+    G.score += 5; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+    G.booked.push(p);
+    stamp('維持預約 ✓', true); G.scoreWhy = '維持原預約';
+    G.note = `${p.name} 維持原預約 +5`;
+  }
+  advanceFront(); render();
+}
+// 第二天突發小事件（每天最多一次）：電腦當機 4 秒；同事請假 12 秒，門口暫停
+function evtHTML() {
+  const e = G.evt; if (!e) return '';
+  return e.type === 'crash'
+    ? '<div class="sticky closed">🖥️ 電腦當機：條件暫時看不到，靠記憶判斷</div>'
+    : '<div class="sticky closed">🚪 同事請假：門口暫停使用，只能放行到科別</div>';
+}
+function stopHTML() {
+  const S = G.stop; if (!S || S.notified >= S.need) return '';
+  return `<div class="sticky closed">🚨 內科臨時停診　已轉診 ${S.notified}／${S.need}</div>`;
+}
+
+/* 插隊：有人說很急，玩家決定讓不讓他先進 */
+function makeJumper() {
+  // 插隊時櫃台時間 +5 秒，並給 6 秒決定
+  // 插隊者是否真的很急，玩家要從他說的話判斷：急的人要先看，不急的人請他排隊
+  G.jumper = newPatient(); G.jumperLeft = 6000;
+  G.jumper.jumpUrgent = Math.random() < 0.5;
+  G.jumper.line = G.jumper.jumpUrgent ? '我胸口好痛，真的很急！' : '我趕著上班，可以先看一下嗎？';
+  G.note = '🙋 有人想插隊，聽聽他怎麼說，再決定。';
+}
+// 插隊判斷：急的人讓他先進 +5；不急卻插隊 −3、排隊的人會抱怨
+function jumperJudge(ok, pts, title, body) {
+  if (ok) { G.score += pts; G.stats.correct++; G.combo++; heal(1); sfx('ok'); }
+  else { G.score -= Math.abs(pts); G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad'); }
+  G.note = (ok ? '✓ ' : '✗ ') + title + '：' + body;
+  G.scoreWhy = title;
+}
+function acceptJumper() {
+  const j = G.jumper; if (!j) return;
+  G.jumper = null;
+  if (j.jumpUrgent) jumperJudge(true, 5, '讓急的人先看', '他真的很急，這樣處理是對的。');
+  else { jumperJudge(false, -3, '他其實不急', '讓不急的人插隊，後面的人會多等。'); setComplaint('你怎麼讓不急的人先進？我們等很久了！'); }
+  if (G.front) G.queue.unshift(G.front);
+  G.front = j; j.patience = G.maxPatience; onNewFront();
+  // 排隊的人會因為被插隊而少一點耐心
+  G.queue.forEach(q => { q.patience = Math.max(1500, q.patience - 2000); });
+  G.stats.jumped = (G.stats.jumped || 0) + 1;
+  render();
+}
+function declineJumper() {
+  if (!G.jumper) return;
+  const j = G.jumper;
+  G.queue.push(j); G.jumper = null;
+  if (j.jumpUrgent) { jumperJudge(false, -5, '他其實很急', '他真的很急，請他排隊是錯的。'); setComplaint('我真的很急，你卻叫我排隊！'); }
+  else jumperJudge(true, 3, '請不急的人排隊', '判斷正確，其他人不用多等。');
+  render();
+}
+
+// 每次一定換成不一樣的規則（不會剛好抽到跟上一位相同的）
+function rotateRule() {
+  const c = cfg();
+  const pool = G.poolNow || c.pool;
+  const size = Math.min(c.size, pool.length);   // 條件數固定（第一、二天都是兩條）
+  // 沒有規則池的天（例如第三天 CESFAM 忙碌的一天）直接略過，避免無限迴圈
+  if (!pool || !pool.length) { G.rules = []; G.open = {}; G.mode = 'and'; return; }
+  const prev = G.mode + '|' + G.rules.map(r => r + G.open[r]).join('|');
+  let key, tries = 0;
+  do {
+    const picked = shuffle(pool).slice(0, size);
+    G.rules = pool.filter(x => picked.includes(x));
+    G.mode = 'and';
+    for (const r of G.rules) G.open[r] = pick(rangeOf(r));
+    key = G.mode + '|' + G.rules.map(r => r + G.open[r]).join('|');
+  } while (key === prev && ++tries < 50);
+}
+
+function startDay(d) {
+  G.day = d; G.phase = 'tutorial'; G.t = cfg().counterMs; G.totalT = G.t;
+  G.paused = false; G.quitArmed = false; G.tutPage = 0; G.okStreak = 0; G.badStreak = 0; G.restUntil = 0; G.seenCount = 0; G.practiceDone = false; G.practiceMsg = null; G.rampFactor = 1; G.rampStage = 0; G.patFactor = 1;
+  G.rules = []; G.open = {}; G.ruleAcc = 0; G.spawnAcc = 0;
+  G.dayPhase = 1; G.pairIdx = 0; G.stop = null;
+  // 有 addAt 的關卡一開始只用前兩個條件（科別、時段），到時間再加入年齡層
+  G.poolNow = null; G.ageNoted = false;
+  rotateRule();
+  G.queue = []; G.front = null; G.jumper = null; G.jumperLeft = 0;
+  G.booked = []; G.credits = cfg().credits + G.creditBonus;
+  G.maxPatience = PATIENCE_MS + G.patienceBonus;
+  G.announced = false; G.pending = null; G.noshow = cfg().noshow || null;
+  G.choice = null; G.choiceLeft = 0; G.closed = null; G.closedDone = false; G.mode = 'and'; G.disasterDone = false; G.casualties = []; G.waitRoom = []; G.minor = []; G.lastJudge = null; G.bays = bayInit();
+  G.note = d === 0 ? '提示：看上方的放行條件，把病人拖到對應科別診間放行；不符合就拖到門口。' : '';
+  G.complaint = null;
+  render();
+}
+
+// 教學結束，正式開始櫃台倒數
+function beginCounter() {
+  if (G.phase !== 'tutorial') return;
+  G.phase = 'counter'; G.t = cfg().counterMs; G.totalT = G.t; G.rampFactor = 1; G.rampStage = 0; G.patFactor = 1;
+  if (cfg().stages) { G.stageIdx = 0; G.poolNow = DAY1_STAGES[0].keys; G.freshKey = null; rotateRule(); }
+  if (cfg().phased) { G.evtDone = false; G.evt = null; G.evtAt = 22000 + Math.random() * 28000; G.evtType = Math.random() < 0.5 ? 'crash' : 'leave'; }
+  // 先倒數 3-2-1，時間和病人都還沒開始
+  G.countdown = 3; G.cdAcc = 0;
+  render();
+}
+// 倒數結束後才真正開始：發第一位病人或啟動第三天
+function startPlay() {
+  G.countdown = 0;
+  if (cfg().appt) apptInit();
+  else if (!cfg().mass) spawn();
+  G.note = G.note || '';
+  render();
+}
+
+/* 櫃台：放行或退回目前這位病人 */
+// zone：拖曳時放的區域（科別名或 'door'）；按鈕則不帶 zone
+// 動態難度（計畫書 5.3）：連續答對 → 稍微加快；連續答錯 → 暫時放慢；上下限固定
+function trackStreak(ok) {
+  if (ok) {
+    G.okStreak = (G.okStreak || 0) + 1; G.badStreak = 0;
+    // 喘息（5.4）：連續正確 5 位，櫃台人員喊話，病患暫停 3 秒
+    if (G.okStreak === 5 && cfg().ramp) {
+      G.restUntil = Date.now() + 3000;
+      G.staffMood = 'happy'; G.staffLine = '太好了！目前一切順利，喝口水吧！'; G.staffUntil = Date.now() + 3000;
+      G.note = '☕ 連續答對 5 位，櫃台休息 3 秒';
+    }
+  } else {
+    G.badStreak = (G.badStreak || 0) + 1; G.okStreak = 0;
+  }
+}
+// 病患出現速度的倍率：只在 1.0 到 1.25 之間調整
+function dynSpawnFactor() {
+  if ((G.badStreak || 0) >= 3) return 1.25;
+  if ((G.okStreak || 0) >= 5) return 0.92;
+  return 1;
+}
+function decide(pass, zone) {
+  if (G.phase !== 'counter' || !G.front || G.countdown > 0) return;
+  const p = G.front;
+  if (p.fromStop) return stopFront(p, zone);
+  if (G.evt && G.evt.type === 'leave' && zone === 'door') { G.note = '同事請假中，門口暫時不能用'; return render(); }
+  const match = p.emergency ? true : matchesAll(p);
+  // 內科停診：內科病人要轉到其他開著的科別
+  if (G.closed && p.dept === G.closed && !p.emergency) return transfer(p, zone);
+  let correct;
+  if (zone === undefined) correct = pass === match;
+  else if (p.emergency) correct = pass;                       // 急診：放到任何科別診間都可以
+  else correct = pass ? (match && zone === p.dept) : !match;  // 放行要進到他自己的科別
+  stamp(pass ? '放行 ✓' : '退回 ✗', correct);
+  G.scoreWhy = (pass ? '放行' : '退回') + (correct ? '正確' : '錯誤');
+  setStaff(correct, pass);
+  trackStreak(correct);
+
+  if (correct) {
+    heal(1);
+    G.combo++;
+    const pts = 5 + Math.min(G.combo - 1, 4) * 2;
+    G.score += pts; G.stats.correct++;
+    if (pass) {
+      if (p.emergency) { G.stats.emergency = (G.stats.emergency || 0) + 1; G.note = `🚑 ${p.name} 急診已處理 +${pts}`; }
+      else { G.booked.push(p); G.note = `${p.name} 放行，今天稍後到診 +${pts}`; }
+      ghostLeave(p, 'happy', 'right', pick(THANKS));
+    } else {
+      G.note = `${p.name} 退回 +${pts}`;
+      ghostLeave(p, 'neutral', 'left', pick(OKAY));
+    }
+    if (G.combo % 4 === 0) {
+      comboBurst(G.combo);
+      if (G.stars < MAX_STARS) { const b4 = G.stars; heal(10); if (G.stars > b4) { G.note += '｜診所評價回升一顆星'; sfx('star'); } }
+    } else {
+      sfx('ok');
+    }
+    flashQ('front', 'ok', '+' + pts);
+  } else {
+    if (G.comboShield > 0) { G.comboShield--; G.note = '連擊保險生效，連擊沒有中斷'; }
+    else G.combo = 0;
+    G.score -= 5; G.stats.wrong++;
+    hurt(3);
+    if (p.disaster) { G.score -= 5; hurt(3); }
+    G.note = p.emergency ? `${p.name} 是急診，不能退回 −5、評價下降`
+      : match ? `${p.name} 其實符合規則，不該退回 −5、評價下降` : `${p.name} 不符合規則，不該放行 −5、評價下降`;
+    setComplaint(p.emergency ? '我快不行了，你怎麼不讓我進去！' : match ? '我明明符合條件啊！' : '你怎麼讓我進來？我不是這一類！');
+    ghostLeave(p, 'angry', 'left', match ? '我明明符合！' : '怎麼讓我進來？');
+    sfx('bad');
+    flashQ('front', 'bad', '−5');
+  }
+  advanceFront();
+  render();
+}
+
+/* 內科停診轉診：拖到其他開著的科別＝轉診成功；拖到門口或停診的科別＝投訴 */
+function transfer(p, zone) {
+  // 停診流程（計畫書 3.2）：通知病人 → 記錄待重新安排，不可轉往不相關的科別
+  const ok = zone === 'resched';
+  stamp(ok ? '已通知 ✓' : '不能轉 ✗', ok);
+  G.scoreWhy = ok ? '通知並重新安排' : '停診病人轉錯地方';
+  setStaff(ok, true);
+  trackStreak(ok);
+  if (ok) {
+    const pts = 8;
+    G.score += pts; G.stats.correct++; G.combo++;
+    G.stats.resched = (G.stats.resched || 0) + 1;
+    G.rescheduleQ = G.rescheduleQ || [];
+    G.rescheduleQ.push({name: p.name, dept: p.dept});
+    G.note = `已通知 ${p.name}，等待安排新時段（待重新安排）+${pts}`;
+    ghostLeave(p, 'happy', 'right', '好，我等通知！');
+    sfx('ok');
+    flashQ('front', 'ok', '+' + pts);
+  } else {
+    const door = zone === undefined || zone === 'door';
+    G.score -= 5; G.stats.wrong++; G.combo = 0;
+    hurt(3);
+    G.note = door ? `${p.name} 不能退回！請通知他並重新安排 −5、評價下降` : `${p.name} 不能轉去其他科別，請用「通知與重新安排」 −5、評價下降`;
+    setComplaint(door ? '你要把我趕出去？我還要看病！' : '我要看的是內科，不是這裡！');
+    ghostLeave(p, 'angry', 'left', '轉錯了！');
+    sfx('bad');
+    flashQ('front', 'bad', '−5');
+  }
+  advanceFront();
+  render();
+}
+
+// 櫃台空了之後等多久來下一位（人潮變多時會縮短），最短 0.8 秒
+function refillDelay() {
+  return Math.max(800, Math.round(spawnBase() * G.spawnFactor * G.rampFactor * 0.5));
+}
+
+/* 換下一位：櫃台空了就很快叫下一位 */
+function advanceFront() {
+  // 選下一位：排隊有兩人以上時，讓玩家選先叫誰
+  if (cfg().choose && G.queue.length >= 2 && !G.jumper && G.queue[0].group && G.queue[0].group === G.queue[1].group) {
+    G.front = null; G.choice = [G.queue.shift(), G.queue.shift()]; G.choiceLeft = CHOICE_MS;
+    // 耐心按比例延長，讓耐心少的人仍然較快離開
+    G.choice.forEach(c => { c.patience = Math.round(c.patience * CHOICE_MS / G.maxPatience); c.group = null; });
+    return;
+  }
+  if (G.queue.length) G.front = G.queue.shift();
+  else if (G.jumper) { G.front = G.jumper; G.jumper = null; }
+  else G.front = null;
+  if (G.front) onNewFront();
+  if (!G.front && G.phase === 'counter' && !G.choice) { G.refillAcc = 0; G.refillIn = refillDelay(); }
+}
+
+function pickNext(i, auto) {
+  const c = G.choice; if (!c || !c[i] || G.countdown > 0) return;
+  const chosen = c[i];
+  const rest = c.filter((_, j) => j !== i);
+  rest.forEach(r => { r.group = null; });   // 這組已經選過，不會再跳出選擇
+  const other = rest[0];
+  const pcW = chosen.patience, poW = other ? other.patience : 0;
+  G.choice = null; G.queue.unshift(...rest);
+  rest.forEach(r => { r.patience = Math.max(0, r.patience - 3000); });   // 先叫一位，另一位會多等
+  G.front = chosen; onNewFront();
+  // 選完後給足時間幫他分配科別
+  chosen.patience = Math.max(chosen.patience, G.maxPatience);
+  // 回饋：比較緊急程度
+  const uc = chosen.urgency, uo = other ? other.urgency : 0;
+  if (auto) {
+    G.note = `來不及選，系統先叫了 ${chosen.name}（${URG[uc].label}）`;
+    stamp('來不及選', false);
+  } else if (!other) {
+    G.note = `先看 ${chosen.name}，請幫他分配科別`;
+    stamp('先看 ' + chosen.name, true);
+  } else if (uc > uo) {
+    G.score += 3;
+    G.note = `${chosen.name}（${URG[uc].label}）先看，判斷正確 +3。${other.name} 再等一下`;
+    stamp('判斷正確 ✓', true);
+    flashQ('front', 'ok', '+3');
+    sfx('ok');
+  } else if (uc === uo) {
+    if (pcW <= poW + 1000) {   // 等得比較久（耐心較少）→ 正確
+      G.score += 3; G.note = `${chosen.name} 和 ${other.name} 同樣緊急，${chosen.name} 等比較久，先看 +3`;
+      stamp('等較久 ✓', true); flashQ('front', 'ok', '+3'); sfx('ok');
+    } else {
+      G.score -= 3; G.note = `同樣緊急，應先叫等比較久的 ${other.name} −3`;
+      stamp('應先叫等較久的人', false); sfx('bad');
+    }
+  } else {
+    G.note = `${other.name}（${URG[uo].label}）比較急，但你先叫了 ${chosen.name}`;
+    stamp('先叫了較不急的人', false);
+    sfx('bad');
+  }
+  render();
+}
+
+function timeoutFront() {
+  G.stats.timeout++; G.score -= 3; G.combo = 0; G.scoreWhy = '等太久離開';
+  hurt(12);
+  G.note = `${G.front.name} 等太久離開了 −3、評價下降`;
+  setComplaint('等好久！我先走了。');
+  G.staffMood = 'worried'; G.staffUntil = Date.now() + 1200; G.staffLine = '來不及了…';
+  sfx('leave');
+  advanceFront();
+}
+
+function endCounter() {
+  if (cfg().mass || cfg().appt) return finish();
+  G.stop = null;
+  G.phase = 'remind'; G.t = REMIND_MS; G.totalT = REMIND_MS;
+  G.front = null; G.queue = []; G.complaint = null; G.jumper = null; G.pending = null; G.choice = null;
+  G.note = G.booked.length
+    ? `櫃台結束，${G.booked.length} 位病人今天稍後會到。按鈕上的數字是每個選項的「沒來機率」。`
+    : '櫃台結束，今天沒有人被放行，所以沒有預約的病人。';
+  render();
+}
+
+/* 提醒 */
+function noShowChance(p, opt) {
+  const f = REMIND_OPTS.find(o => o.key === opt).factor;
+  return p.risk * f;
+}
+function setRemind(id, opt) {
+  if (G.phase !== 'remind') return;
+  const p = G.booked.find(x => x.id === id);
+  if (!p) return;
+  const oldCost = REMIND_OPTS.find(o => o.key === p.remind).cost;
+  const newCost = REMIND_OPTS.find(o => o.key === opt).cost;
+  if (G.credits + oldCost < newCost) { G.note = '提醒額度不夠了。'; render(); return; }
+  G.credits += oldCost - newCost;
+  p.remind = opt;
+  G.note = '';
+  render();
+}
+
+function endRemind() {
+  if (G.phase !== 'remind') return;
+  G.phase = 'reveal'; G.t = REVEAL_MS; G.totalT = REVEAL_MS;
+  let a = 0, n = 0;
+  for (const p of G.booked) {
+    const noShowP = noShowChance(p, p.remind);
+    p.shownChance = noShowP;
+    if (Math.random() >= noShowP) {
+      p.arrived = true; G.score += 10; G.scoreWhy = '預約準時到診'; G.stats.arrived++; a++;
+      flashQ(`r-${p.id}`, 'ok', '+10');
+    } else {
+      p.arrived = false; G.stats.noshow++; n++;
+      flashQ(`r-${p.id}`, 'bad');
+    }
+  }
+  G.stats.booked += G.booked.length;
+  G.note = G.booked.length ? `結果：${a} 位準時來，${n} 位沒來。` : '今天沒有放行任何預約，沒有結果可以揭曉。';
+  sfx('reveal');
+  render();
+}
+
+function endDay() {
+  if (G.phase !== 'reveal') return;
+  G.phase = 'dayend';
+  const bonus = G.credits * 2;
+  G.score += bonus;
+  G.note = bonus ? `剩下的 ${G.credits} 點額度換成 +${bonus} 分` : '';
+  render();
+}
+
+/* 每天結束後：選一項升級（最後一天直接看結果） */
+function nextDay() {
+  if (G.phase !== 'dayend') return;   // 重複點擊時忽略，避免畫面跳到錯誤的階段
+  if (G.day >= DAYS.length - 1) return finish();
+  G.upgradeChoices = shuffle(UPGRADES).slice(0, 3);
+  G.phase = 'upgrade';
+  render();
+}
+
+function chooseUpgrade(i) {
+  if (G.phase !== 'upgrade') return;
+  const u = G.upgradeChoices[i];
+  if (!u) return;
+  u.apply();
+  G.lastUpgrade = u.name;
+  sfx('upgrade');
+  startDay(G.day + 1);
+  G.note = `獲得升級：${u.name}（${u.desc}）`;
+  render();
+}
+
+function finish() {
+  if (G.day === 3) return finishBonus();
+  G.phase = 'end';
+  const s = G.stats;
+  G.rate = s.booked ? Math.round(s.arrived / s.booked * 100) : 0;
+  const decided = s.correct + s.wrong + s.timeout;
+  G.accuracy = decided ? Math.round(s.correct / decided * 100) : 0;
+  const rateOK = s.booked ? G.rate >= 70 : true, rateMid = s.booked ? G.rate >= 50 : true;
+  let grade = (rateOK && G.accuracy >= 75) ? '順暢'
+    : (rateMid && G.accuracy >= 55) ? '小塞車' : '大混亂';
+  if (G.stars <= 1 && grade === '順暢') grade = '小塞車';
+  G.grade = grade;
+  if (G.day === 2) unlockBonus();
+  G.note = '';
+  if (grade === '順暢') { sfx('win'); confetti(60); } else if (grade === '大混亂') sfx('lose');
+  render();
+}
+
+/* 每 100 毫秒一次 */
+function loop() {
+  if (!G || G.paused || G.modal) return;
+  if (G.phase === 'counter' && G.countdown > 0) {
+    G.cdAcc = (G.cdAcc || 0) + 100;
+    if (G.cdAcc >= 1000) {
+      G.cdAcc = 0; G.countdown--;
+      if (G.countdown > 0) sfx('tick'); else { sfx('start'); startPlay(); }
+      render();
+    }
+    return;
+  }
+  if (G.phase === 'counter') {
+    if (cfg().appt) { apptTick(); return; }
+    G.t -= 100; G.spawnAcc += 100; G.ruleAcc += 100;
+    let changed = false;
+    // 每過 30 秒人潮變多（只有有 ramp 的關卡）
+    if (cfg().ramp) {
+      const stage = Math.floor((G.totalT - G.t) / 30000);
+      if (stage > G.rampStage) {
+        G.rampStage = stage; G.rampFactor = Math.max(0.45, G.rampFactor * 0.8);
+        G.patFactor = Math.max(0.6, (G.patFactor || 1) * 0.92);
+        G.note = '🕒 人潮變多了，病患來得更快，耐心也變短！'; changed = true;
+      }
+    }
+    // 到了設定的時間，加入年齡層條件（第一天約 45 秒）
+    if (cfg().stages) {
+      const el = G.totalT - G.t;
+      const idx = el < DAY1_STAGES[0].end ? 0 : el < DAY1_STAGES[1].end ? 1 : 2;
+      if (idx > (G.stageIdx || 0)) {
+        G.stageIdx = idx; G.poolNow = DAY1_STAGES[idx].keys;
+        G.freshKey = DAY1_STAGES[idx].newKey; G.freshUntil = Date.now() + 3000;
+        G.note = DAY1_STAGES[idx].banner; changed = true;
+      }
+    }
+    if (G.complaint && Date.now() > G.complaintUntil) { G.complaint = null; changed = true; }
+    if (G.staffMood !== 'neutral' && Date.now() > G.staffUntil) { G.staffMood = 'neutral'; G.staffLine = '今天也要順順的！'; changed = true; }
+    if (cfg().mass) {
+      if (massTick()) changed = true;
+    } else if (G.spawnAcc >= spawnBase() * G.spawnFactor * G.rampFactor * dynSpawnFactor() && Date.now() >= (G.restUntil || 0) && !(cfg().phased && G.dayPhase >= 3)) {
+      G.spawnAcc = 0;
+      if (!G.front || G.queue.length + 1 < MAX_QUEUE) {
+        const jumpOK = G.front && !G.jumper && G.stats.total > 3 && Math.random() < cfg().jump;
+        if (jumpOK) makeJumper();
+        else if (cfg().pair && !cfg().phased && G.queue.length + 2 <= MAX_QUEUE && Math.random() < (cfg().pairChance || 0.25)) spawnPair();
+        else spawn();
+        if (!G.choice) changed = true;
+      }
+    }
+    if (G.jumper) {
+      G.jumperLeft -= 100;
+      if (G.jumperLeft <= 0) {
+        // 時間到還沒決定：等同請他排隊
+        const j = G.jumper; G.queue.push(j); G.jumper = null; changed = true;
+        if (j.jumpUrgent) { jumperJudge(false, -5, '他很急卻沒有被看到', '時間到了還沒決定。'); setComplaint('我真的很急，怎麼沒人理我？'); }
+      }
+    }
+    // 今日公告：中途改寫其中一條規則，1 秒後生效
+    if (cfg().announce && !G.announced && G.t <= cfg().counterMs / 2) {
+      G.announced = true;
+      const r = pick(G.rules), v = pick(others(rangeOf(r), G.open[r]));
+      G.pending = {r, v, at: Date.now() + 1000};
+      G.note = `📢 公告：${RULE_NAME[r]}改為「${v}」，1 秒後生效`;
+      changed = true;
+    }
+    if (G.pending && Date.now() >= G.pending.at) {
+      G.open[G.pending.r] = G.pending.v;
+      G.note = `📢 公告生效：${RULE_NAME[G.pending.r]}現在是「${G.pending.v}」`;
+      G.pending = null; changed = true;
+    }
+    if (G.front) {
+      G.front.patience -= 100;
+      if (G.front.patience <= 0) {
+        ghostLeave(G.front, 'impatient', 'left', '等好久！');
+        timeoutFront(); changed = true;
+      }
+    }
+    // 選下一位：候選人耐心會持續減少，時間到或只剩一人就自動叫
+    if (G.choice) {
+      G.choiceLeft -= 100;
+      G.choice.forEach(c => c.patience -= 100);
+      const gone = G.choice.filter(c => c.patience <= 0);
+      if (gone.length) {
+        G.choice = G.choice.filter(c => c.patience > 0);
+        G.stats.timeout += gone.length; G.combo = 0;
+        gone.forEach(g => { G.score -= URG[g.urgency].pen; G.scoreWhy = '等太久離開'; hurt(URG[g.urgency].star * 12); });
+        G.note = `${gone.map(g => g.name).join('、')} 等太久離開了（${gone.map(g => URG[g.urgency].label + ' −' + URG[g.urgency].pen).join('、')}）`;
+        setComplaint('等好久！我先走了。');
+        changed = true;
+      }
+      if (G.choice && G.choice.length === 0) { G.choice = null; advanceFront(); changed = true; }
+      else if (G.choice && G.choiceLeft <= 0) {
+        const urgent = G.choice.reduce((m, c, i) => (c.patience < G.choice[m].patience ? i : m), 0);
+        pickNext(urgent, true); changed = true;
+      }
+    }
+    if (!G.front && G.queue.length && !G.choice) { advanceFront(); changed = true; }
+    // 保險：櫃台如果空著，就立刻叫一位病人
+    if (!cfg().mass && !(cfg().phased && G.dayPhase >= 3) && !G.front && !G.queue.length && !G.jumper && !G.choice) {
+      G.refillAcc = (G.refillAcc || 0) + 100;
+      if (G.refillAcc >= (G.refillIn || 1000)) { G.refillAcc = 0; spawn(); changed = true; }
+    }
+    // 第二天分段：暖身 → 固定雙人排序 → 臨時停診任務
+    if (cfg().phased && G.dayPhase < 3) {
+      const el0 = G.totalT - G.t;
+      if (!G.evtDone && el0 >= G.evtAt) {
+        G.evtDone = true; G.evt = {type: G.evtType, endEl: el0 + (G.evtType === 'crash' ? 4000 : 12000)};
+        G.note = G.evtType === 'crash' ? '🖥️ 電腦當機了！條件暫時看不到，靠記憶判斷' : '🚪 同事請假，門口暫時不能用';
+        changed = true;
+      }
+      if (G.evt && el0 >= G.evt.endEl) { G.evt = null; G.note = '系統恢復正常'; changed = true; }
+    }
+    if (cfg().phased) {
+      const el = G.totalT - G.t;
+      const ph = el >= DAY2_STOP_AT ? 3 : el >= DAY2_PAIR_AT[0] ? 2 : 1;
+      if (ph > G.dayPhase) { G.dayPhase = ph; G.note = DAY2_NOTE[ph] || G.note; changed = true; if (ph === 3) startStop(); }
+      if (G.dayPhase === 2 && G.pairIdx < DAY2_PAIR_AT.length && el >= DAY2_PAIR_AT[G.pairIdx] && !G.choice && !G.front && !G.jumper) {
+        G.pairIdx++; spawnScheduledPair(); changed = true;
+      }
+    }
+    // 排隊走道：排隊的人耐心會慢慢減少
+    if (cfg().walk) {
+      G.queue.forEach(q => { q.patience -= 100; });
+      const lost = G.queue.filter(q => q.patience <= 0);
+      if (lost.length) {
+        G.queue = G.queue.filter(q => q.patience > 0);
+        lost.forEach(q => { G.stats.timeout++; G.score -= URG[q.urgency].pen; G.scoreWhy = '排隊的人等太久離開'; hurt(URG[q.urgency].star * 12); });
+        G.note = `${lost.map(q => q.name).join('、')} 在走道上等太久離開了`;
+        setComplaint('等好久！我先走了。');
+        changed = true;
+      }
+    }
+    if (G.t <= 0) { endCounter(); return; }
+    if (changed) render(); else updateCounterBits();
+  } else if (G.phase === 'remind') {
+    G.t -= 100;
+    if (G.t <= 0) endRemind(); else updateTimer();
+  } else if (G.phase === 'reveal') {
+    G.t -= 100;
+    if (G.t <= 0) endDay(); else updateTimer();
+  }
+}
+
+function updatePairBits() {
+  if (!G.choice) return;
+  const big = document.querySelector('.pair .bar.big i');
+  if (big) big.style.width = (G.choiceLeft / CHOICE_MS * 100) + '%';
+  document.querySelectorAll('.pair .pcand').forEach((el, i) => {
+    const c = G.choice[i], bar = el.querySelector('.cbar i');
+    if (c && bar) bar.style.width = Math.max(0, c.patience / CHOICE_MS * 100) + '%';
+  });
+}
+function updateCounterBits() {
+  if (cfg().appt) { updateApptBits(); updateTimer(); return; }
+  if (cfg().mass) { updateTriageBits(); updateTimer(); return; }
+  updatePairBits();
+  const b = $('#pbar');
+  if (b && G.front) {
+    const ratio = G.front.patience / G.maxPatience;
+    b.style.width = (ratio * 100) + '%';
+    b.classList.toggle('low', ratio < 0.35);
+  }
+  updateTimer();
+}
+function updateTimer() {
+  const el = $('#timer');
+  if (el) el.textContent = Math.ceil(G.t / 1000) + ' 秒';
+  const bar = $('#tprogbar');
+  if (bar && G.totalT) {
+    const ratio = Math.max(0, Math.min(1, G.t / G.totalT));
+    bar.style.width = (ratio * 100) + '%';
+    const box = $('#tprog');
+    if (box) box.className = 'tprog ' + (ratio < 0.15 ? 'crit' : ratio < 0.3 ? 'warn' : 'ok');
+  }
+}
+/* ================= 畫面 ================= */
+function enterCls(id) {
+  if (seenIds.has(id)) return '';
+  seenIds.add(id);
+  return 'arrive';
+}
+
+function hudHTML() {
+  const timed = ['counter', 'remind', 'reveal'].includes(G.phase);
+  const ratio = timed && G.totalT ? Math.max(0, Math.min(1, G.t / G.totalT)) : 0;
+  const tcls = ratio < 0.15 ? 'crit' : ratio < 0.3 ? 'warn' : 'ok';
+  const done = G.stats.correct + G.stats.wrong + G.stats.timeout;
+  const pauseBtn = timed && !G.paused && !G.modal ? '<button class="pausebtn" data-act="pause">⏸ 暫停</button>' : '';
+  return `<div><span class="event">🗓 ${cfg().event}</span></div>
+    <div class="hud"><span>${dayTag()}｜<b>${PHASE_NAME[G.phase]}</b></span>
+      <span class="hudright"><span id="timer">${timed ? Math.ceil(G.t / 1000) + ' 秒' : ''}</span>${pauseBtn}</span></div>
+    ${timed ? `<div class="tprog ${tcls}" id="tprog"><i id="tprogbar" style="width:${ratio * 100}%"></i></div>` : ''}
+    <div class="hud"><span class="stars">${stars(G.stars)}</span>
+      <span>分數 <b data-key="score">${G.score}</b>${scoreChipHTML()}</span></div>
+    ${scoreHistHTML()}
+    <div class="hud"><span>${G.phase === 'remind' ? `提醒額度 <b>${G.credits}</b>` : `已處理 <b>${done}</b> 位｜連擊 <b class="${G.combo >= 4 ? 'pop' : ''}">${G.combo}</b>`}</span></div>
+    ${G.note ? `<div class="note">${G.note}</div>` : '<div class="note"></div>'}`;
+}
+// 排隊走道：可以拖動病人互換順序
+function laneHTML() {
+  const URGL = {1: '🟢', 2: '🟡', 3: '🔴'};
+  const slots = G.queue.map((q, i) => `<div class="slot" data-slot="${i}">${avatar(q, 'neutral', 'xs')}<small>${URGL[q.urgency]} ${q.name}</small><div class="bar"><i style="width:${Math.max(0, q.patience / G.maxPatience * 100)}%"></i></div></div>`).join('');
+  return `<div class="lane">${slots || '<small class="muted">走道上沒有人</small>'}</div>
+    <div class="dragtip">排隊走道：拖動病人可以互換順序，耐心快空的人要先叫</div>`;
+}
+// 大型車禍：急救床與傷患
+function triageHTML() {
+  const j = G.lastJudge && Date.now() < G.lastJudge.until ? G.lastJudge : null;
+  const judge = j
+    ? `<div class="judge ${j.ok ? 'ok' : 'bad'}"><b>${j.title}</b><div>${j.body}</div></div>`
+    : '<div class="judge idle">先看傷患的觀察數據，再把他拖到下方的檢傷色區</div>';
+  const cards = G.casualties.map((c, i) => `<div class="tcard" data-cas="${i}">
+      <div class="thead"><b>${c.name}</b><span>${SITE_INFO[c.site].icon} ${c.site}</span></div>
+      <div class="clues">
+        <span>🚶 能走路：${c.clues.walk ? '是' : '否'}</span>
+        <span class="${c.clues.rr > 30 ? 'warn' : ''}">🫁 呼吸：${c.clues.rr} 次/分</span>
+        <span class="${c.clues.cap > 2 ? 'warn' : ''}">💓 末梢：${c.clues.cap > 2 ? '再充填 ' + c.clues.cap + ' 秒' : '正常'}</span>
+        <span class="${c.clues.cmd ? '' : 'warn'}">🗣 聽指令：${c.clues.cmd ? '是' : '否'}</span>
+      </div>
+      <div class="bar"><i data-casbar="${i}" style="width:${c.patience / 12000 * 100}%"></i></div></div>`).join('')
+    || '<div class="pcard center muted" style="padding:30px 0">等待下一位傷患…</div>';
+  const bays = G.bays.map((b, i) => {
+    const name = b.kind === 'red' ? '🔴 急救床' : `${SITE_INFO[b.site].icon} ${SITE_INFO[b.site].room}`;
+    return b.p
+      ? `<div class="bay on"><b>${name}</b>${avatar(b.p, 'happy', 'xs')}<div class="bar"><i data-baybar="${i}" style="width:${b.left / TREAT[b.p.cat] * 100}%"></i></div></div>`
+      : `<div class="bay"><b>${name}</b><small>空床｜${b.kind === 'red' ? '收 🔴 立即' : '收' + b.site + '傷患'}</small></div>`;
+  }).join('');
+  const minor = `<div class="bay ${G.minor.length ? 'on' : ''}"><b>🟢 快速處置</b><small>${G.minor.length}/3 人處置中</small>${G.minor.map(m => avatar(m.p, 'happy', 'xs')).join('')}</div>`;
+  const waiting = G.waitRoom.length
+    ? `<div class="waitrow"><small>候診：</small>${G.waitRoom.map(p => `<span class="waitchip">${CAT_NAME[p.cat]} ${SITE_INFO[p.site].icon}</span>`).join('')}</div>`
+    : '';
+  return `<div class="counter-scene">
+    <div class="sticky">📋 START 口訣：能走路→🟢｜呼吸超過30、末梢超過2秒、不聽指令→🔴｜其他→🟡</div>
+    ${judge}
+    ${cards}
+    <div class="rooms-h">治療區（依檢傷結果自動安排）</div>
+    <div class="bays">${bays}${minor}</div>
+    ${waiting}
+    <div class="queue"><span class="muted" style="margin-left:auto">櫃台剩 ${Math.ceil(G.t / 1000)} 秒</span></div>
+  </div>${triZonesHTML()}`;
+}
+function triZonesHTML() {
+  return `<div class="zones tri"><div class="dragtip">把傷患拖到檢傷色區（依 START 口訣判斷）</div>
+    <div class="zone tri-red" data-zone="red">🔴<br>立即</div>
+    <div class="zone tri-yellow" data-zone="yellow">🟡<br>延遲</div>
+    <div class="zone tri-green" data-zone="green">🟢<br>輕傷</div></div>`;
+}
+function updateTriageBits() {
+  G.casualties.forEach((c, i) => { const el = document.querySelector(`[data-casbar="${i}"]`); if (el) el.style.width = (c.patience / 12000 * 100) + '%'; });
+  G.bays.forEach((b, i) => { const el = document.querySelector(`[data-baybar="${i}"]`); if (el && b.p) el.style.width = (b.left / TREAT[b.p.cat] * 100) + '%'; });
+}
+// 傷患送進急救床：重傷要先送，送錯順序扣分
+// 大型車禍：傷患陸續進來（重、中、輕隨機）
+// 依 START 檢傷法產生傷患：先決定真實分類，再產生對應的觀察數據
+function makeCasualty() {
+  const p = newPatient();
+  p.disaster = true; p.site = pick(SITES); p.patience = 12000;
+  p.cat = pick(['red', 'red', 'yellow', 'yellow', 'green']);
+  const k = {walk: false, rr: 16 + Math.floor(Math.random() * 7), cap: 1.2, cmd: true};
+  if (p.cat === 'green') {
+    k.walk = true; k.rr = 14 + Math.floor(Math.random() * 7);
+  } else if (p.cat === 'red') {
+    const why = pick(['rr', 'cap', 'cmd']);
+    if (why === 'rr') k.rr = 31 + Math.floor(Math.random() * 8);
+    if (why === 'cap') k.cap = +(2.5 + Math.random() * 2).toFixed(1);
+    if (why === 'cmd') k.cmd = false;
+  } else {
+    k.rr = Math.random() < 0.25 ? 28 + Math.floor(Math.random() * 2) : 16 + Math.floor(Math.random() * 9); // 偶爾貼近 30 的邊界
+  }
+  p.trueCat = p.cat;   // 真實分類：分錯或等太久惡化時用來扣分
+  p.clues = k;
+  return p;
+}
+// 說明分類的理由（判斷後顯示，讓玩家知道為什麼）
+function whyCat(c) {
+  const k = c.clues;
+  if (c.cat === 'green') return '他能自己走路 → 🟢 輕傷（可以等，送去快速處置）';
+  if (c.cat === 'red') {
+    if (k.rr > 30) return `呼吸 ${k.rr} 次/分，超過 30 → 🔴 立即`;
+    if (k.cap > 2) return `末梢再充填 ${k.cap} 秒，超過 2 秒 → 🔴 立即`;
+    return '無法聽從簡單指令 → 🔴 立即';
+  }
+  return `不能走路，但呼吸 ${k.rr}、末梢正常、能聽指令 → 🟡 延遲`;
+}
+// 檢傷：把傷患拖到紅／黃／綠區
+function triage(ci, cat) {
+  const c = G.casualties[ci]; if (!c) return;
+  const reason = whyCat(c);
+  if (cat === c.cat) {
+    G.score += 10; G.stats.correct++; G.combo++; sfx('ok');
+    G.lastJudge = {ok: true, title: `✓ ${CAT_NAME[cat]} 正確 +10`, body: reason, until: Date.now() + 6000};
+    G.note = `${c.name} 分為 ${CAT_NAME[cat]}，正確 +10`;
+  } else {
+    G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad');
+    G.lastJudge = {ok: false, title: `✗ 你分成 ${CAT_NAME[cat]}，應該是 ${CAT_NAME[c.cat]}，−5、評價下降`, body: reason, until: Date.now() + 6000};
+    G.note = `${c.name} 分類錯誤 −5、評價下降`;
+  }
+  c.cat = cat;               // 依你分的類別送治療區（真實分類仍是 trueCat）
+  G.casualties.splice(ci, 1);
+  c.patience = WAIT_MS[cat];
+  G.waitRoom.push(c);
+  routeWaiting();
+  render();
+}
+// 自動分流：紅先進急救床、黃進對應部位的治療室、綠進快速處置（最多 3 人）
+function routeWaiting() {
+  const order = {red: 0, yellow: 1, green: 2};
+  G.waitRoom.sort((a, b) => order[a.cat] - order[b.cat]);
+  for (const p of [...G.waitRoom]) {
+    let bay = null;
+    if (p.cat === 'red') bay = G.bays.find(b => b.kind === 'red' && !b.p);
+    else if (p.cat === 'yellow') bay = G.bays.find(b => b.kind === 'site' && b.site === p.site && !b.p);
+    else if (G.minor.length < 3) {
+      G.minor.push({p, left: TREAT.green});
+      G.waitRoom = G.waitRoom.filter(x => x !== p);
+      continue;
+    }
+    if (bay) {
+      bay.p = p; bay.left = TREAT[p.cat];
+      G.waitRoom = G.waitRoom.filter(x => x !== p);
+    }
+  }
+}
+// 等太久沒送到治療區或沒分類：依真實嚴重度扣分
+function missed(p, where) {
+  const real = p.trueCat || p.cat;
+  const m = MISS_PEN[real];
+  G.stats.timeout++; G.combo = 0; G.score -= m.pen; hurt(m.star * 12);
+  G.note = `${p.name}（${CAT_NAME[real]}）在${where}惡化 −${m.pen}${m.star ? '、評價下降' : ''}`;
+  sfx('leave');
+}
+// 第三天每 100 毫秒呼叫一次；回傳是否需要重畫
+function massTick() {
+  let changed = false;
+  if (G.spawnAcc >= spawnBase() * G.spawnFactor * G.rampFactor && G.casualties.length < 3) {
+    G.spawnAcc = 0; G.casualties.push(makeCasualty()); changed = true;
+  }
+  G.casualties.forEach(c => { c.patience -= 100; });
+  const gone = G.casualties.filter(c => c.patience <= 0);
+  if (gone.length) { G.casualties = G.casualties.filter(c => c.patience > 0); gone.forEach(c => missed(c, '櫃台')); changed = true; }
+  G.waitRoom.forEach(p => { p.patience -= 100; });
+  const worse = G.waitRoom.filter(p => p.patience <= 0);
+  if (worse.length) { G.waitRoom = G.waitRoom.filter(p => p.patience > 0); worse.forEach(p => missed(p, '候診區')); changed = true; }
+  G.bays.forEach(b => {
+    if (!b.p) return;
+    b.left -= 100;
+    if (b.left <= 0) { G.note = `${b.p.name} 治療完成，離開${bayName(b)}`; b.p = null; changed = true; }
+  });
+  G.minor = G.minor.filter(m => {
+    m.left -= 100;
+    if (m.left <= 0) { G.note = `${m.p.name} 快速處置完成`; changed = true; return false; }
+    return true;
+  });
+  const before = G.waitRoom.length;
+  routeWaiting();
+  if (G.waitRoom.length !== before) changed = true;
+  return changed;
+}
+function swapQueue(i, j) {
+  if (i === j || !G.queue[i] || !G.queue[j]) return;
+  [G.queue[i], G.queue[j]] = [G.queue[j], G.queue[i]];
+  render();
+}
+
+// 內科停診時，內科病人不能用按鈕處理，只能拖到其他科別轉診
+function closedHere(p) { return !!(G.closed && p.dept === G.closed && !p.emergency); }
+// 分診台：三間診間＋門口，拖曳病人到對應區域
+function zonesHTML() {
+  const stopOn = !!(G.stop && G.stop.notified < G.stop.need);
+  const transferring = closedHere(G.front) || !!(G.front && G.front.fromStop && G.stop);
+  const z = d => (G.closed === d || (stopOn && d === '內科'))
+    ? `<div class="zone closed" data-zone="${d}">❌ ${d}<br><small>${stopOn && d === '內科' ? '停診 → 轉診' : '停診中，不能放行'}</small></div>`
+    : `<div class="zone" data-zone="${d}">${VAL_ICON.dept[d]} ${d}</div>`;
+  const tip = transferring
+    ? '📣 內科停診：請把內科病人拖到打叉的「內科」轉診'
+    : '👆 拖到他的科別診間放行；不符合就拖到門口';
+  const resched = G.closed ? '<div class="zone transfer" data-zone="resched">📣 通知與重新安排<br><small>等待安排新時段</small></div>' : '';
+  return `<div class="zones"><div class="dragtip">${tip}</div>${DEPTS.map(z).join('')}${resched}${G.evt && G.evt.type === 'leave' ? '<div class="zone closed" data-zone="door">🚪 門口<br><small>同事請假，暫停使用</small></div>' : '<div class="zone door" data-zone="door">🚪 門口</div>'}</div>`;
+}
+
+function countdownHTML() {
+  if (!G.countdown) return '';
+  return `<div class="cdwrap"><div class="cdnum" key="${G.countdown}">${G.countdown}</div><small>準備開始</small></div>`;
+}
+function counterHTML() {
+  if (cfg().appt) return G.countdown ? countdownHTML() : apptHTML();
+  if (cfg().mass) return countdownHTML() + triageHTML();
+  const p = G.front;
+  const freshNow = G.freshKey && Date.now() < (G.freshUntil || 0);
+  const pills = (G.poolNow || cfg().pool).map(x => `<span class="ptag ${G.rules.includes(x) ? 'on' : ''} ${freshNow && G.freshKey === x ? 'fresh' : ''}">${KEY_ICON[x]} ${RULE_NAME[x]}</span>`).join('');
+  // 條件只在真的換了才播放彈出動畫；其他重畫時不重播，避免閃爍
+  const ruleKey = G.mode + '|' + G.rules.map(x => x + G.open[x]).join('|');
+  const choiceStill = !!G.choiceShown; G.choiceShown = !!G.choice;
+  const choiceHTML = G.choice ? `<div class="pair ${choiceStill ? 'still' : ''}">
+      <div class="pair-h">🙋 兩位同時到櫃台，你先看誰？</div>
+      <div class="pair-row">${G.choice.map((c, i) => `<div class="pcand u${c.urgency}" data-act="pick" data-i="${i}">
+        <div class="cu">${URG[c.urgency].label}</div>
+        ${avatar(c, 'neutral', 'sm')}
+        <b>${c.name}</b>
+        <small class="need">「${c.line}」</small>
+        <div class="cbar"><i style="width:${Math.max(0, c.patience / CHOICE_MS * 100)}%"></i></div>
+        <small>耐心剩 ${Math.ceil(c.patience / 1000)} 秒</small>
+        <small class="cost">先叫他，另一位耐心 −3 秒</small>
+        <small class="cost">離開扣 ${URG[c.urgency].pen} 分</small>
+      </div>`).join('')}</div>
+      <div class="bar big"><i style="width:${G.choiceLeft / CHOICE_MS * 100}%"></i></div>
+      <div class="dragtip">點一位先看（選完再幫他分配科別），另一位繼續排隊</div>
+    </div>` : '';
+  const ruleFresh = G.lastRuleKey !== ruleKey;
+  G.lastRuleKey = ruleKey;
+  const line = (label, v) => `<span>${label}：${v}</span>`;
+  const complaint = G.complaint ? `<div class="complaint">💬「${G.complaint}」</div>` : '';
+  const waiting = cfg().walk ? '' : G.queue.slice(0, 4).map(q => `<span class="qp walk">${avatar(q, 'neutral', 'xs')}</span>`).join('');
+  const card = p ? `
+    <div class="pcard ${enterCls('f' + p.id)}" data-key="front" data-drag="1">
+      ${p.emergency ? '<div class="emg">🚑 急診！請立刻放行</div>' : ''}
+      ${closedHere(p) ? '<div class="emg transfer-tag">📣 內科停診：請拖到「通知與重新安排」</div>' : ''}
+      <div class="row">${avatar(p, p.patience < 2000 ? 'impatient' : 'neutral')}
+        <div style="flex:1"><b style="font-size:19px">${p.name}</b>
+          <div class="bubble">「${p.line}」</div>
+          <div class="fields">
+            ${shownKeys().map(k => line(RULE_NAME[k], p[k])).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="bar"><i id="pbar" style="width:${p.patience / G.maxPatience * 100}%"></i></div>
+    </div>` : (choiceHTML || `<div class="pcard center muted" style="padding-top:70px">☕ 等待下一位病人…</div>`);
+  return `${countdownHTML()}<div class="counter-scene ${G.stop && G.front && G.front.fromStop ? 'stopmode' : ''}">
+    <div class="staffrow">${avatar(STAFF, G.staffMood, 'sm')}<div class="bubble">櫃台：「${G.staffLine}」</div></div>
+    ${complaint}
+    ${stopHTML()}
+    ${evtHTML()}
+    ${G.jumper ? `<div class="jump">
+      <b>🙋 ${G.jumper.name}</b> 說：「${G.jumper.line}」
+      <div class="btns"><button data-act="jumpyes">讓他先進（後面的人多等）</button><button class="deny" data-act="jumpno">請他排隊</button></div>
+      <div class="bar"><i style="width:${G.jumperLeft / 6000 * 100}%"></i></div>
+    </div>` : ''}
+    ${G.stop && G.front && G.front.fromStop ? '<div class="sticky stoprule">📌 停診期間條件：內科病人 → 「內科」轉診；其他病人 → 他自己的科別</div>' : ''}
+    <div class="rulebox">
+      <div class="ticket"><span class="hole"></span>
+        <h4>放行條件（${G.rules.length} 條，${G.mode === 'or' ? '符合任一條即可' : '須同時符合'}）</h4>
+        <div class="rule ${ruleFresh ? '' : 'still'}" key="${ruleKey}">${G.evt && G.evt.type === 'crash' ? '<div class="trow"><span>🖥️ 系統當機中…</span></div>' : ruleHTML()}</div>
+        <div class="tfoot">每位病人換一組規則</div>
+      </div>
+      ${G.closed ? `<div class="sticky closed">🚫 今天${G.closed}停診：${G.closed}病人請拖到「通知與重新安排」</div>` : ''}
+      ${G.noshow ? `<div class="sticky">📌 今天的爽約規則：${Object.values(G.noshow).join('＋')}的病人容易爽約</div>` : ''}
+      <div class="pills">${pills}</div>
+    </div>
+    ${card}
+    ${p ? zonesHTML() : ''}
+
+    ${cfg().walk ? laneHTML() : ''}
+    <div class="queue">${waiting}${G.queue.length > 4 && !cfg().walk ? `<span class="muted">+${G.queue.length - 4}</span>` : ''}
+      <span class="muted" style="margin-left:auto">排隊 ${G.queue.length}｜櫃台剩 ${Math.ceil(G.t / 1000)} 秒</span></div>
+    </div>`;
+}
+
+function remindStatsHTML() {
+  const used = G.booked.reduce((s, p) => s + REMIND_OPTS.find(o => o.key === p.remind).cost, 0);
+  const total = used + G.credits;
+  const exp = G.booked.reduce((s, p) => s + (1 - noShowChance(p, p.remind)), 0);
+  return `<div class="card center"><b>已使用額度：${used}／${total}</b><br><b>模擬預期到診：${exp.toFixed(1)}／${G.booked.length} 人</b>
+    <div class="muted" style="font-size:12px">預期值由每位病患的模擬機率加總，不是真實到診預測。</div></div>`;
+}
+function remindHTML() {
+  const cards = G.booked.map(p => `
+    <div class="card">
+      <div class="row">${avatar(p, 'neutral', 'sm')}
+        <div style="flex:1"><b>${p.name}</b>
+          ${p.history ? '<span class="tag warn">上次爽約過</span>' : '<span class="tag">沒有爽約紀錄</span>'}
+          <div class="odds">基本沒來機率 ${pct(p.risk)}${p.ruleHit ? '（符合今天的爽約規則）' : ''}</div>
+          ${p.reason ? `<small class="muted">預約情境：${p.reason.label}</small>` : ''}
+        </div>
+      </div>
+      <div class="seg">${REMIND_OPTS.map(o => `
+        <button class="${p.remind === o.key ? 'on' : ''}" data-act="remind" data-id="${p.id}" data-opt="${o.key}">
+          ${o.label}<small>${o.cost ? `${o.cost} 額度` : '免費'}｜沒來 ${pct(noShowChance(p, o.key))}</small></button>`).join('')}
+      </div>
+    </div>`).join('');
+  return `${remindStatsHTML()}<p class="muted">越早提醒越有效，但也越貴。你要決定額度花在誰身上。</p>
+    ${cards || '<div class="card center">今天沒有放行任何預約的病人（退回或急診不會有預約）😴</div>'}
+    <button data-act="endremind">完成提醒，看結果</button>`;
+}
+
+function revealDeltaHTML() {
+  if (!G.booked.length) return '';
+  const d = G.booked.reduce((s, p) => s + (noShowChance(p, 'none') - noShowChance(p, p.remind)), 0);
+  return `<div class="card center"><b>這次的提醒策略，讓預期到診增加 ${d.toFixed(1)} 人。</b>
+    <div class="muted" style="font-size:12px">單次隨機結果不一定如預期。</div></div>`;
+}
+function revealHTML() {
+  const cards = G.booked.map(p => `
+    <div class="card ${p.arrived ? 'happy-bounce' : 'no'}" data-key="r-${p.id}">
+      <div class="row">${avatar(p, p.arrived ? 'happy' : 'sad', 'sm')}
+        <div style="flex:1"><b>${p.name}</b>
+          <div class="muted">${REMIND_OPTS.find(o => o.key === p.remind).label}提醒｜沒來機率 ${pct(p.shownChance)}</div></div>
+        <span class="tag ${p.arrived ? '' : 'warn'}">${p.arrived ? '✓ 準時來了' : '✗ 沒有來'}</span>
+      </div></div>`).join('');
+  return `${revealDeltaHTML()}${cards || '<div class="card center">今天沒有放行任何預約的病人，所以沒有結果</div>'}
+    <p class="muted center">機率低也可能沒來，這就是隨機性。</p>`;
+}
+
+function dayendHTML() {
+  const isLast = G.day >= DAYS.length - 1;
+  const s = G.stats;
+  return `<div class="card center"><h2>${dayTag()} 結束 🎉</h2>
+    <p>診所評價 <span class="stars">${stars(G.stars)}</span></p>
+    <p>櫃台正確 ${s.correct} 次｜預約 ${s.booked} 位，準時來 ${s.arrived} 位</p>
+    <p class="muted">目前分數 ${G.score}</p></div>
+    <button data-act="nextday">${isLast ? '看這一週的結果' : '選擇一項升級 ➜'}</button>`;
+}
+
+function upgradeHTML() {
+  const opts = G.upgradeChoices.map((u, i) =>
+    `<button class="up" data-act="upgrade" data-i="${i}">${u.name}<small>${u.desc}</small></button>`).join('');
+  return `<div class="card center"><h2>🛠 診所升級</h2><p class="muted">選一項，之後每一天都會生效。</p></div>${opts}`;
+}
+
+// 每關開始前的圖文教學（繁體中文；教學期間計時器不走）
+const TUT_AV = {color: PALETTE[1], hair: HAIRS[1]};
+const TUTORIAL = [
+  [ // 第一天
+    {title: '怎麼玩', text: '第一天分三段，每段多一個條件。每位新病人來時，條件也會換一組，留意上方的標籤。',
+      visual: `<div class="tv-step">
+        <div class="tv-h">第一步：看條件與病人</div>
+        <div class="tv-rule">放行條件：<b>牙科</b> ＋ <b>上午</b></div>
+        <div class="tv-pt">${avatar(TUT_AV, 'neutral', 'sm')}<span>王小明<br>科別：牙科 ✓　時段：上午 ✓</span></div>
+        <div class="tv-h">第二步：拖到正確位置</div>
+        <div class="tv-zones"><span class="ok">🦷 牙科</span><span>🚪 門口（退回）</span></div>
+      </div>`},
+    {title: '練習：放行一位病人', type: 'practice', text: '', visual: ''}
+  ],
+  [ // 第二天
+    {title: '排序與停診', text: '第二天的條件固定是「科別」和「年齡層」。重點是決定先處理誰：<br>• 兩位同時到時，先點一位叫他<br>• 同樣緊急時，先看等比較久的人<br>• 過一段時間後，內科臨時停診：內科按鈕會打叉變成「轉診」，把內科病人拖過去；其他病人照常放行',
+      visual: `<div class="tv-pair"><div class="tv-cand u1">🟢 一般</div><div class="tv-cand u3">🔴 危急</div></div>`},
+    {title: '提醒', text: '櫃台結束後，可以用有限的額度提醒預約的病患。額度不多，選最需要的人。畫面會顯示目前的預期到診人數，只是參考，實際結果還是有隨機性。',
+      visual: `<div class="tv-remind"><span>不發</span><span>前一晚</span><span>當天早上</span></div>`}
+  ],
+  [ // 第三天：預約救援大作戰
+    {title: '預約救援', text: '三個階段，每個階段開始前按「開始」才計時：<br>📩 回覆處理：看懂病患回覆，選正確的處理方式<br>🧩 診位配對：把候補拖到對得上的空缺（服務與時段相同，而且同意接受通知）<br>⚡ 最後救援：用有限的提醒，處理還不確定的病患',
+      visual: `<div class="tv-note">回覆處理 → 診位配對 → 最後救援</div>`},
+    {title: '小提醒', text: '• 沒有同意通知的候補，不能直接發送，按「待人工處理」即可<br>• 來電要求取消，要趕快按「記錄取消」<br>• 卡住時可以用一次「✨ 智慧助手」，它會高亮可配對的候補，但配對還是要你自己做',
+      visual: `<div class="tv-note">📞 來電：「我今天不能來了…」<br>✅ 記錄取消</div>`}
+  ],
+  [ // Bonus：大型事故挑戰（START 檢傷）
+    {title: '大型事故', text: '傷患會陸續送進來。依照 START 口訣判斷，把他拖到對應的顏色區：<br>🟢 能自己走路 → 輕傷<br>🔴 不能走，而且呼吸過快、末梢循環差、或不能聽指令 → 立即<br>🟡 其他 → 延遲<br>分好類後，系統會自動安排床位。',
+      visual: `<div class="tv-tri"><span class="tri-red">🔴 立即</span><span class="tri-yellow">🟡 延遲</span><span class="tri-green">🟢 輕傷</span></div>`},
+    {title: '注意', text: '本關是遊戲模擬，不代表真實的臨床檢傷標準。實際醫療請依醫療人員的專業判斷。',
+      visual: `<div class="tv-note">🧪 遊戲模擬，僅供學習</div>`}
+  ]
+];
+// 練習病患：不計時、不扣分，答對才能繼續
+function practiceHTML() {
+  const z = d => `<button class="act" data-act="practice" data-zone="${d}">${(VAL_ICON.dept[d] || '🚪')} ${d === 'door' ? '門口（退回）' : d}</button>`;
+  return `<p class="muted">這是一位練習病患，不計時、不扣分，可以重複操作。</p>
+    <div class="tv-card"><div class="tv-fields"><b>王小明</b><span>科別：牙科</span><span>掛號：上午</span></div></div>
+    <p><b>放行條件：牙科＋上午</b></p>
+    <div class="acts">${DEPTS.map(z).join('')}${z('door')}</div>
+    <div class="judge ${G.practiceDone ? 'ok' : 'idle'}">${G.practiceMsg || '請點選他應該去的診間。'}</div>`;
+}
+function practiceTap(zone) {
+  if (zone === '牙科') { G.practiceDone = true; G.practiceMsg = '✓ 答對了！科別與時段都符合，可以繼續。'; }
+  else G.practiceMsg = zone === 'door' ? '再看看預約條件，這位病患是牙科、上午喔！' : `${zone}不符合：這位病患是牙科、上午喔！`;
+  render();
+}
+function tutorialHTML() {
+  const pages = TUTORIAL[G.day];
+  const i = G.tutPage, pg = pages[i], last = i === pages.length - 1;
+  return `<div class="card tut">
+      <div class="tut-step">${dayTag()}｜教學 ${i + 1} ／ ${pages.length}</div>
+      <h2>${pg.title}</h2>
+      ${pg.type === 'practice' ? practiceHTML() : `<div class="tut-vis">${pg.visual}</div>
+      <p>${pg.text}</p>`}
+      <div class="tut-dots">${pages.map((_, k) => `<span class="${k === i ? 'on' : ''}"></span>`).join('')}</div>
+      <p class="muted tut-tip">教學期間時間不會減少，看完再開始。</p>
+    </div>
+    <div class="tut-nav">
+      <button class="btn-ghost" data-act="tutprev" ${i === 0 ? 'disabled' : ''}>← 上一步</button>
+      ${last ? '<button data-act="tutgo">開始挑戰 ▶</button>' : `<button data-act="tutnext" ${pg.type === 'practice' && !G.practiceDone ? 'disabled' : ''}>繼續 →</button>`}
+    </div>
+    <button class="link" data-act="tutskip">跳過教學</button>`;
+}
+function pauseHTML() {
+  return `<div class="card center pausecard"><h2>⏸ 暫停中</h2>
+      <p class="muted">時間已停止，病患不會再來，也不會扣分。</p>
+      <button data-act="resume">▶ 繼續遊戲</button>
+      <button class="btn-ghost" data-act="quit">${G.quitArmed ? '再按一次：重新開始整個遊戲' : '↺ 重新開始整個遊戲'}</button>
+    </div>`;
+}
+function setPaused(on) {
+  if (!G || G.phase === 'tutorial' || G.phase === 'end' || G.phase === 'intro') return;
+  if (on) { G.paused = true; G.pauseStart = Date.now(); G.quitArmed = false; }
+  else if (G.paused) {
+    // 暫停的時間不算在病患等待與提示文字的計時裡
+    const d = Date.now() - G.pauseStart;
+    G.complaintUntil += d; G.staffUntil += d;
+    if (G.lastJudge) G.lastJudge.until += d;
+    G.paused = false; G.quitArmed = false;
+  }
+  render();
+}
+
+/* ================= 第三天：預約救援大作戰（V6）================= */
+const APPT_SVC = ['一般醫師門診', '牙科', '營養諮詢', '心理諮詢'];
+const APPT_TIMES = ['上午', '下午'];
+const APPT_SUB = [
+  {name: '📩 訊息快手', ms: 60000, hint: '病患回覆一則一則進來。看懂內容，選正確的處理方式，連續答對可以累積 Combo。',
+    intro: '病患的 WhatsApp 回覆會陸續進來。看懂內容，選正確的處理方式。<br>連續答對可以累積 <b>Combo</b>：連 2 次 ×2，連 3 次 +5，連 5 次 +10。'},
+  {name: '🧩 診位配對王', ms: 120000, hint: '把候補拖到對得上的空缺（服務、時段相同，且同意通知）。也可以先點候補，再點空缺。',
+    intro: '把候補拖到對得上的空缺：<b>服務、時段相同，且同意數位通知</b>。<br>沒同意通知的人，按「📋 待人工處理」。也可以先點候補，再點空缺。<br>本局會有 <b>1–2 個突發事件</b>：神救援、候補改變主意、突然來電、幸運配對。完成所有待辦就能提早結束。'},
+  {name: '⚡ 最後救援', ms: 45000, hint: '還沒確認的病患可以用提醒額度發提醒。額度有限，選最需要的人。',
+    intro: '診所快關門了！還有幾件事要處理。<br>提醒額度<b>比還不確定的病患少</b>，要選最需要的人。已取消的病患不會因為提醒而變回確認。'}
+];
+const APPT_REPLY = {
+  confirm: '我會準時到，謝謝提醒！',
+  cancel: '不好意思，我臨時有事，想取消這次預約。',
+  cancelAlready: '我已經取消了，怎麼還收到提醒？',
+  resched: '這個時段不太方便，可以請你幫我改到下午嗎？',
+  unsure: '我還不確定能不能出席。'
+};
+const APPT_CARE = {
+  confirm: '謝謝提醒，我明天會準時到！',
+  cancel: '太好了，這樣我就不用擔心忘記取消了！',
+  cancelAlready: '太好了，這樣我就不用擔心忘記取消了！',
+  resched: '謝謝！那我等候新的時段通知。',
+  unsure: '好的，我再想想，之後再跟你說。'
+};
+const APPT_ACT = {confirm: '✅ 確認出席', cancel: '❌ 處理取消', resched: '📅 記錄改期', track: '⏳ 待追蹤'};
+const APPT_WANT = {confirm: 'confirm', cancel: 'cancel', cancelAlready: 'track', resched: 'resched', unsure: 'track'};
+const APPT_WHY = {
+  confirm: '病患回覆會出席，直接確認即可。',
+  cancel: '病患要取消。記錄取消後，這個時段會空出來，之後可以安排候補。',
+  cancelAlready: '病患說已經取消。先標記待追蹤並核對原預約狀態，不要重複取消，也不要新增空缺。',
+  resched: '病患要改期。記錄改期後，原時段會空出，他要排進新的時段。',
+  unsure: '病患還不確定。先標記待追蹤，最後救援時再處理，不要直接當成確認。'
+};
+// 計分（V6 第八節）
+const APPT_SCORE = {reply: 10, cancel: 5, resched: 5, send: 5, manual: 5, success: 10, call: 5, combo3: 5, combo5: 10, wrong: 5};
+const isCancel = a => a.kind === 'cancel';
+
+function apptBurst(text) {
+  const d = document.createElement('div');
+  d.className = 'burst';
+  d.textContent = text;
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1100);
+  confetti(22); sfx('combo', 5);
+}
+function apptIntro(i) {
+  return {title: APPT_SUB[i].name, body: `${APPT_SUB[i].intro}<br><small class="muted">本階段 ${APPT_SUB[i].ms / 1000} 秒</small>`, btn: '開始 ▶', action: 'apptGo'};
+}
+function apptGo() { G.lastJudge = null; }
+
+function apptInit() {
+  // 每局人次隨機：固定的 4 則 + 1–3 則確認 + 機率加入「已取消仍收到提醒」與額外「還不確定」，總共 6–8 則
+  let kinds = ['cancel', 'resched', 'unsure', 'unsure'];
+  for (let i = 0, n = 1 + Math.floor(Math.random() * 3); i < n; i++) kinds.push('confirm');
+  if (Math.random() < 0.5) kinds.push('cancelAlready');
+  if (Math.random() < 0.5) kinds.push('unsure');
+  while (kinds.length < 6) kinds.push('confirm');
+  kinds = shuffle(kinds.slice(0, 8));
+  G.appts = kinds.map((k, i) => ({
+    id: 'a' + i, name: pick(NAMES), svc: APPT_SVC[i % APPT_SVC.length], time: pick(APPT_TIMES),
+    kind: k, state: 'queue', reminded: false, skipped: false, final: null, rebooked: false
+  }));
+  G.inboxQ = G.appts.slice(); G.inbox = []; G.arrAcc = 0; G.arrNext = 3000;
+  G.slots = []; G.waitlist = []; G.apptCredits = 3;
+  G.sub = 0; G.taskTotal = 0; G.rescued = 0; G.rescueTarget = 0;
+  G.apptStreak = 0; G.apptMaxStreak = 0; G.apptErr = 0; G.eventsHandled = 0;
+  G.selCand = null; G.call = null; G.subEl = 0; G.speedNoted = false; G.idleAcc = 0; G.luckyWanted = false; G.luckyDone = false;
+  G.apptStats = {handled: 0, confirmed: 0, cancelled: 0, rebooked: 0, reminded: 0, manual: 0};
+  G.skillLeft = 1; G.skillUntil = 0; G.skillHL = null; G.hintOn = true; G.candPage = 0; G.speedNoted = false;
+  G.apptTotal = G.appts.length;
+  G.apptReport = null;
+  G.t = APPT_SUB[0].ms; G.totalT = G.t;
+  G.lastJudge = null;
+  G.note = '';
+  G.modal = apptIntro(0);
+}
+function apptSlot(a, from, time) {
+  return {id: (from === 'target' ? 't' : 's') + a.id, svc: a.svc, time: time || a.time, state: 'open', left: 0, total: 6000, cand: null, from, task: false};
+}
+function apptWrong(title, body) {
+  G.score -= APPT_SCORE.wrong; G.stats.wrong++; G.combo = 0; G.apptStreak = 0; G.apptErr++; hurt(3); sfx('bad');
+  G.lastJudge = {ok: false, title: '✗ ' + title, body, until: Date.now() + 6000};
+  render();
+}
+function apptRight(pts, title, body) {
+  G.score += pts; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+  G.lastJudge = {ok: true, title, body, until: Date.now() + 5000};
+}
+function apptTaskDone() { return G.slots.filter(s => s.task && (s.state === 'filled' || s.manualDone)).length; }
+
+// 階段 1：訊息快手
+function apptAct(id, k) {
+  const a = G.appts.find(x => x.id === id);
+  if (!a || a.state !== 'inbox' || G.sub !== 0) return;
+  const want = APPT_WANT[a.kind];
+  if (k !== want) return apptWrong(`這則應該選「${APPT_ACT[want]}」`, APPT_WHY[a.kind]);
+  const base = a.kind === 'confirm' || a.kind === 'unsure' || a.kind === 'cancelAlready' ? APPT_SCORE.reply : a.kind === 'resched' ? APPT_SCORE.resched : APPT_SCORE.cancel;
+  G.apptStreak++; G.apptMaxStreak = Math.max(G.apptMaxStreak, G.apptStreak);
+  const mult = 1;   // V7：不再對第 2 題起雙倍，只保留連續 3、5 次的加成
+  let pts = base * mult; const extra = [];
+  let title = `✓ ${APPT_ACT[k]} 正確 +${pts}`;
+  if (G.apptStreak === 3) { pts += APPT_SCORE.combo3; extra.push('連擊 +5'); }
+  if (G.apptStreak === 5) { pts += APPT_SCORE.combo5; extra.push('連擊 +10'); title = '🔥 COMBO ×5！訊息處理高手！'; apptBurst('🔥 COMBO ×5！訊息處理高手！'); }
+  apptRight(pts, title, `${a.name}：「${APPT_CARE[a.kind]}」${extra.length ? '（' + extra.join('、') + '）' : ''}`);
+  G.lastJudge.title = title.replace(/ \+\d+$/, '') + ` +${pts}`;
+  G.apptStats.handled++;
+  G.inbox = G.inbox.filter(x => x !== a);
+  if (a.kind === 'unsure') a.state = 'pending';
+  else {
+    a.state = 'done';
+    if (a.kind === 'cancelAlready') a.final = 'verify';   // 已核對原預約，不新增空缺
+    if (a.kind === 'confirm') { a.final = 'confirmed'; G.apptStats.confirmed++; }
+    if (isCancel(a)) { a.final = 'cancelled'; G.apptStats.cancelled++; G.slots.push(apptSlot(a, 'freed')); }
+    if (a.kind === 'resched') {
+      a.final = 'rescheduling';
+      const other = a.time === '上午' ? '下午' : '上午';
+      G.slots.push(apptSlot(a, 'freed'));
+      // 記錄改期需求：只是候補需求，不建立新時段；要等實際空缺出現才能安排
+      G.waitlist.push({id: 'w' + a.id, name: a.name, svc: a.svc, time: other, consent: true, willing: true, fromId: a.id, slotId: null, event: null, need: true});
+    }
+  }
+  render();
+}
+
+// 階段 1 → 階段 2：安排候補、空缺與突發事件（保證有解）
+function apptLeaveA() {
+  G.inbox.concat(G.inboxQ).forEach(a => { a.state = 'pending'; });
+  G.inbox = []; G.inboxQ = [];
+  const tasks = G.slots.filter(s => s.from === 'freed' || s.from === 'target');
+  while (tasks.length < 3) {
+    const s = {id: 'x' + G.slots.length + Math.floor(Math.random() * 1000), svc: pick(APPT_SVC), time: pick(APPT_TIMES), state: 'open', left: 0, total: 6000, cand: null, from: 'freed', task: false};
+    G.slots.push(s); tasks.push(s);
+  }
+  tasks.forEach(s => { s.task = true; });
+  G.taskTotal = tasks.length;
+  const mk = (s, consent, willing, event) => ({id: 'c' + Math.random().toString(36).slice(2, 8), name: pick(NAMES), svc: s.svc, time: s.time, consent, willing, fromId: null, slotId: s.id, event: event || null});
+  // 保證：2 位可以成功配對、1 位需要人工處理
+  G.waitlist.push(mk(tasks[0], true, true));
+  G.waitlist.push(mk(tasks[1], true, true));
+  G.waitlist.push(mk(tasks[2], false, true));
+  // 保證：1 位服務或時段對不上
+  const used = new Set(tasks.map(s => s.svc + '|' + s.time));
+  const free = [];
+  APPT_SVC.forEach(sv => APPT_TIMES.forEach(tm => { if (!used.has(sv + '|' + tm)) free.push([sv, tm]); }));
+  if (free.length) { const [sv, tm] = pick(free); G.waitlist.push({id: 'n' + Math.random().toString(36).slice(2, 7), name: pick(NAMES), svc: sv, time: tm, consent: Math.random() < 0.5, willing: true, fromId: null, slotId: null, event: null}); }
+  // 額外候補數量隨機（0–2 位），可能是對不上的、沒同意通知的，或可以配對的
+  for (let i = 0, n = Math.floor(Math.random() * 3); i < n; i++) G.waitlist.push(mk(pick(tasks), Math.random() < 0.6, Math.random() < 0.5));
+  // 救援目標：依本局實際可成功安排的人數設定（最多 3）
+  // 突發事件：每局 1–2 個（A 神救援、B 改變主意、C 突然來電、D 幸運配對）
+  const evs = shuffle(['A', 'B', 'C', 'D']).slice(0, Math.random() < 0.5 ? 1 : 2);
+  const rndTask = () => pick(tasks);
+  if (evs.includes('A')) { const s = rndTask(); G.waitlist.push(mk(s, true, true, 'A')); }
+  if (evs.includes('B')) { const s = rndTask(); G.waitlist.push(mk(s, true, false, 'B')); }
+  // 救援目標：所有候補（含事件）都確定後才計算，只計可以成功安排的人
+  G.rescueTarget = Math.min(3, G.waitlist.filter(c => c.consent && c.willing && tasks.some(s => s.svc === c.svc && s.time === c.time)).length);
+  G.rescued = 0;
+  G.call = null;
+  if (evs.includes('C')) G.call = {state: 'scheduled', at: 8000 + Math.floor(Math.random() * 12000), left: 0, name: pick(NAMES), svc: pick(APPT_SVC), time: pick(APPT_TIMES)};
+  G.luckyWanted = evs.includes('D'); G.luckyDone = false;
+  G.events = evs;
+  G.subEl = 0; G.idleAcc = 0; G.selCand = null;
+  G.sub = 1; G.t = APPT_SUB[1].ms; G.totalT = G.t;
+  G.lastJudge = null;
+  G.modal = apptIntro(1);
+}
+
+function apptCanAct() {
+  if (G.call && (G.call.state === 'scheduled' || G.call.state === 'ringing')) return true;
+  if (G.slots.some(s => s.state === 'notified')) return true;
+  return G.slots.some(s => s.state === 'open' && G.waitlist.some(c => c.svc === s.svc && c.time === s.time));
+}
+
+// 階段 2：拖曳或點選配對
+function apptPick(cid) {
+  G.selCand = G.selCand === cid ? null : cid;
+  G.lastJudge = null;
+  render();
+}
+function apptSlotTap(sid) {
+  if (!G.selCand) { G.lastJudge = {ok: false, title: '先點一位候補，再點空缺', body: '點選候補後，再點對應的空缺時段。', until: Date.now() + 2500}; return render(); }
+  apptSend(G.selCand, sid);
+}
+function apptSend(cid, sid) {
+  const c = G.waitlist.find(x => x.id === cid), s = G.slots.find(x => x.id === sid);
+  if (!c || !s || s.state !== 'open') return;
+  if (c.svc !== s.svc) return apptWrong(`${c.name} 要的是${c.svc}喔！`, `這格空缺是 ${s.svc}${s.time}，請找對的服務。`);
+  if (c.time !== s.time) return apptWrong(`這位病患希望${c.time}就診喔！`, `這格空缺是 ${s.svc}${s.time}，請找${s.time}的候補。`);
+  if (!c.consent) return apptWrong(`${c.name} 沒有同意數位通知`, '不能直接發 WhatsApp。請按他的「📋 待人工處理」。');
+  s.state = 'notified'; s.cand = c; s.left = c.event === 'A' ? 2000 : 6000; s.total = s.left;
+  G.waitlist = G.waitlist.filter(x => x !== c);
+  G.selCand = null;
+  apptRight(APPT_SCORE.send, `📨 通知已發出！+${APPT_SCORE.send}`, `${c.name} 正在回覆…`);
+  G.note = '已發送候補通知，等待回覆…';
+  render();
+}
+// 候補沒同意數位通知：按「待人工處理」（不強迫，正確標記也加分）
+function apptManual(cid) {
+  const c = G.waitlist.find(x => x.id === cid);
+  if (!c || c.consent) return;
+  const s = G.slots.find(x => x.state === 'open' && x.svc === c.svc && x.time === c.time);
+  if (!s) return;
+  s.manualDone = true; s.manualFor = c.name;   // 空缺仍開放，其他符合條件的候補還能配對
+  G.waitlist = G.waitlist.filter(x => x !== c);
+  G.apptStats.manual++; G.selCand = null;
+  apptRight(APPT_SCORE.manual, `📋 ${c.name} 已加入待辦 +${APPT_SCORE.manual}`, '已交給行政人員後續依授權程序處理。');
+  G.note = '已加入待辦';
+  render();
+}
+function apptResolve(s) {
+  const c = s.cand; s.cand = null;
+  if (c && c.willing) {
+    s.state = 'filled'; G.rescued++; G.apptStats.rebooked++;
+    if (c.fromId) { const src = G.appts.find(x => x.id === c.fromId); if (src) src.rebooked = true; }
+    const pts = APPT_SCORE.success;
+    let title = `🎉 成功救回一個診位！+${pts}`;
+    let body = `${c.name}：「太好了！我可以來！」${s.svc}${s.time} 已安排。（救援 ${G.rescued}／${G.rescueTarget}）`;
+    let bonus = 0;
+    if (c.event === 'A') { bonus = 5; title = `⚡ 神救援！+${pts + bonus}`; body = `${c.name}：「我剛好有空！我可以去！」（特殊事件 +5）`; G.eventsHandled++; }
+    if (c.event === 'D') { bonus = 5; title = `✨ 完美配對！+${pts + bonus}`; body = `突然出現的空缺剛好符合需求！（特殊事件 +5）`; G.eventsHandled++; }
+    G.score += pts + bonus; G.stats.correct++; G.combo++; heal(1); sfx('win');
+    G.lastJudge = {ok: true, title, body, until: Date.now() + 5000};
+    if (G.rescued >= 3) apptBurst('🏆 診位救援達人！');
+  } else {
+    s.state = 'open';
+    const ev = c && c.event === 'B';
+    if (ev) G.eventsHandled++;
+    G.lastJudge = {ok: false, title: ev ? '候補改變主意：時段重新開放' : '候補暫時無法出席，重新找找其他人吧！', body: `${c ? c.name : '候補'}：「不好意思，我臨時不能來了。」（不扣分，Combo 不中斷）`, until: Date.now() + 5000};
+  }
+  G.note = G.lastJudge.title;
+}
+function apptLeaveB() {
+  G.call = null;
+  // 還在等回覆的候補通知保留到第三階段，可用額度追蹤，不直接清除
+  G.pendingCand = [];
+  G.slots.forEach(s => { if (s.state === 'notified' && s.cand) { G.pendingCand.push({slot: s, cand: s.cand}); s.state = 'pendingCand'; s.cand = null; } });
+  const unsureN = G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure').length;
+  G.apptCredits = Math.max(1, unsureN - 1);
+  G.sub = 2; G.t = APPT_SUB[2].ms; G.totalT = G.t;
+  G.lastJudge = null; G.selCand = null;
+  G.modal = apptIntro(2);
+}
+
+// 突發事件 C：來電要求取消
+function apptCall(k) {
+  const call = G.call;
+  if (!call || call.state !== 'ringing') return;
+  if (k === 'record') {
+    call.state = 'answered'; G.eventsHandled++;
+    const sid = 'k' + Date.now();
+    G.slots.push({id: sid, svc: call.svc, time: call.time, state: 'open', left: 0, total: 6000, cand: null, from: 'freed', task: true});
+    G.taskTotal++;
+    G.waitlist.push({id: 'k' + sid, name: pick(NAMES), svc: call.svc, time: call.time, consent: true, willing: Math.random() < 0.6, fromId: null, slotId: sid, event: null});
+    apptRight(APPT_SCORE.call, `📞 新空缺出現！快看看候補名單！+${APPT_SCORE.call}`, `已記錄 ${call.name} 的取消，${call.svc}${call.time} 已釋出。`);
+  } else {
+    call.state = 'missed';
+    apptWrong('來電者要求取消，應該先記錄', '沒有記錄取消，這個時段不會釋出。');
+  }
+  render();
+}
+
+// 階段 3：最後救援
+function apptRemind(id) {
+  const a = G.appts.find(x => x.id === id);
+  if (!a || a.state !== 'pending' || a.kind !== 'unsure' || a.reminded || G.sub !== 2) return;
+  if (G.apptCredits < 1) { G.note = '提醒額度用完了'; return render(); }
+  G.apptCredits--; a.reminded = true; G.apptStats.reminded++;
+  G.note = `已發提醒給 ${a.name}（剩 ${G.apptCredits} 額度）`;
+  render();
+}
+function apptFollow(i) {
+  const x = (G.pendingCand || [])[i];
+  if (!x || G.sub !== 2) return;
+  if (G.apptCredits < 1) { G.note = '追蹤額度用完了'; return render(); }
+  G.apptCredits--;
+  G.pendingCand.splice(i, 1);
+  const s = x.slot, c = x.cand;
+  if (c.willing) {
+    s.state = 'filled'; G.rescued++; G.apptStats.rebooked++;
+    if (c.fromId) { const src = G.appts.find(a => a.id === c.fromId); if (src) src.rebooked = true; }
+    G.score += APPT_SCORE.success; G.stats.correct++; heal(1); sfx('win');
+    G.lastJudge = {ok: true, title: `🎉 追蹤成功！${c.name} 會來 +${APPT_SCORE.success}`, body: `${s.svc}${s.time} 已安排。`, until: Date.now() + 5000};
+  } else {
+    s.state = 'open';
+    G.lastJudge = {ok: false, title: `${c.name}：「不好意思，我臨時不能來了。」`, body: '時段重新開放，不扣分。', until: Date.now() + 5000};
+  }
+  render();
+}
+// ✨ 智慧助手：高亮可配對的候補，並暫停已發出通知的倒數 5 秒；不會替玩家配對
+function apptSkill() {
+  if (G.sub !== 1 || G.skillLeft < 1) return;
+  G.skillLeft--;
+  G.skillUntil = Date.now() + 5000;
+  const ready = G.waitlist.filter(c => c.consent && G.slots.some(s => s.state === 'open' && s.svc === c.svc && s.time === c.time));
+  G.skillHL = ready.map(c => c.id);
+  G.selCand = null;
+  G.lastJudge = ready.length
+    ? {ok: true, title: '✨ 智慧助手啟動！', body: `${ready[0].name} 符合目前的空缺（${ready[0].svc}${ready[0].time}）。請自己點選配對。`, until: Date.now() + 5000}
+    : {ok: false, title: '✨ 智慧助手啟動！', body: '目前沒有可以配對的候補，可以等新的空缺或來電。', until: Date.now() + 5000};
+  render();
+}
+function apptHintToggle() { G.hintOn = !G.hintOn; render(); }
+function apptPage(d) { G.candPage = Math.max(0, (G.candPage || 0) + d); render(); }
+// 候補改期：有對得上的空缺時，可以直接安排（不需額度）
+function apptPlaceResched(id) {
+  const a = G.appts.find(x => x.id === id);
+  if (!a || a.final !== 'rescheduling' || a.rebooked || G.sub !== 2) return;
+  const other = a.time === '上午' ? '下午' : '上午';
+  const s = G.slots.find(x => x.state === 'open' && x.svc === a.svc && x.time === other);
+  if (!s) { G.note = '目前沒有可用的新時段'; return render(); }
+  s.state = 'filled'; a.rebooked = true; G.rescued++; G.apptStats.rebooked++;
+  G.score += APPT_SCORE.success; G.stats.correct++; heal(1); sfx('win');
+  G.lastJudge = {ok: true, title: `📅 ${a.name} 改期成功！+${APPT_SCORE.success}`, body: `已安排到 ${s.svc}${s.time}。`, until: Date.now() + 5000};
+  render();
+}
+function apptSkip(id) {
+  const a = G.appts.find(x => x.id === id);
+  if (!a || a.state !== 'pending' || a.kind !== 'unsure' || G.sub !== 2) return;
+  a.skipped = true; render();
+}
+function apptFinish() {
+  // 已取消、已改期的病患永遠不會被隨機改成確認；只有「還不確定」的人提醒後才可能回來
+  G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure').forEach(a => {
+    if (!a.reminded && !a.skipped) { a.final = 'unhandled'; a.state = 'resolved'; return; }
+    const yes = Math.random() < (a.reminded ? 0.6 : 0.25);
+    a.final = yes ? 'confirmed' : 'noresp';
+    if (yes) G.apptStats.confirmed++;
+    a.state = 'resolved';
+  });
+  const candUnresolved = (G.pendingCand || []).length;
+  G.slots.forEach(s => { if (s.state === 'notified' || s.state === 'pendingCand') s.state = 'open'; });
+  G.pendingCand = [];
+  const st = G.apptStats;
+  const acc = G.stats.correct + G.stats.wrong ? G.stats.correct / (G.stats.correct + G.stats.wrong) : 0;
+  let stars = 1;
+  if (acc >= 0.6) stars = 2;
+  if (acc >= 0.6 && G.rescued >= G.rescueTarget && G.apptErr <= 1) stars = 3;
+  G.apptReport = {
+    total: G.apptTotal, confirmed: st.confirmed, cancelled: st.cancelled,
+    reschedPending: G.appts.filter(a => a.final === 'rescheduling' && !a.rebooked).length,
+    rebooked: st.rebooked, manual: st.manual,
+    noReply: G.appts.filter(a => a.kind === 'unsure' && a.final === 'noresp').length + candUnresolved,
+    unhandled: G.appts.filter(a => a.final === 'unhandled').length,
+    reminded: st.reminded,
+    confirmRate: G.apptTotal ? Math.round(st.confirmed / G.apptTotal * 100) : 0,
+    rescued: G.rescued, rescueTarget: G.rescueTarget, maxStreak: G.apptMaxStreak,
+    events: G.eventsHandled, score: G.score, stars, accuracy: Math.round(acc * 100)
+  };
+  return finish();
+}
+
+// 階段完成：按「繼續」才進入下一階段（倒數停止）
+function stageDone(sub) {
+  const A = G.apptStats;
+  if (sub === 0) {
+    const conf = G.appts.filter(a => a.final === 'confirmed').length;
+    G.modal = {title: '📩 訊息快手 完成', body: `處理了 ${A.handled}／${G.apptTotal} 則回覆，最長 Combo ×${G.apptMaxStreak}。<br>已確認 ${conf} 位，取消 ${G.appts.filter(a => isCancel(a) && a.state === 'done').length} 位，待追蹤 ${G.appts.filter(a => a.state === 'pending').length} 位。`, btn: '繼續：診位配對王 →', action: 'apptA'};
+  } else if (sub === 1) {
+    const done = apptTaskDone();
+    const why = done >= G.taskTotal ? '<br>全部待辦完成，提早結束！' : (!apptCanAct() ? '<br>剩下的空缺沒有可以配對的人，提早結束。' : '');
+    G.modal = {title: '🧩 診位配對王 完成', body: `已完成 ${done}／${G.taskTotal} 件待辦。<br>今日救援進度：${G.rescued}／${G.rescueTarget}${why}`, btn: '繼續：最後救援 →', action: 'apptB'};
+  } else {
+    const undecided = G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure' && !a.reminded && !a.skipped).length;
+    const body = undecided === 0 ? '⚡ 最後救援成功！所有待確認的病患都處理了。'
+      : '今天仍有一些待辦，但你已經努力處理大部分問題！';
+    G.modal = {title: '⚡ 最後救援 完成', body: `${body}<br>提醒已發送 ${A.reminded} 次，剩餘額度 ${G.apptCredits}。`, btn: '看今日成績 →', action: 'apptEnd'};
+  }
+  G.lastJudge = null; G.idleAcc = 0; G.selCand = null;
+  render();
+}
+
+// 每 100 毫秒：來訊、配對回覆、突發事件、階段切換
+function apptTick() {
+  let changed = false;
+  G.t -= 100;
+  const elapsed = G.totalT - G.t;
+  if (G.sub === 0) {
+    G.arrAcc = (G.arrAcc || 0) + 100;
+    const fast = elapsed >= 25000;
+    if (fast && !G.speedNoted) { G.speedNoted = true; G.lastJudge = {ok: true, title: '📨 病患回覆變多了，快跟上！', body: '後面的回覆會來得更快。', until: Date.now() + 3000}; changed = true; }
+    if (G.inboxQ.length && G.inbox.length < 2 && G.arrAcc >= (G.arrNext || 3000)) {
+      G.arrAcc = 0; G.arrNext = fast ? 2000 + Math.floor(Math.random() * 1001) : 3000 + Math.floor(Math.random() * 2001);
+      const a = G.inboxQ.shift(); a.state = 'inbox'; G.inbox.push(a); changed = true;
+    }
+    const allHandled = !G.inboxQ.length && !G.inbox.length;
+    G.idleAcc = allHandled ? (G.idleAcc || 0) + 100 : 0;
+    if (G.idleAcc >= 1500) G.t = 0;
+  } else if (G.sub === 1) {
+    if (G.skillHL && Date.now() >= (G.skillUntil || 0)) { G.skillHL = null; changed = true; }
+    const frozen = Date.now() < (G.skillUntil || 0);   // 智慧助手：候補回覆倒數暫停
+    G.slots.forEach(s => {
+      if (s.state !== 'notified' || frozen) return;
+      s.left -= 100;
+      if (s.left <= 0) { apptResolve(s); changed = true; }
+    });
+    // 突發事件 D：幸運配對（約 20 秒後出現）
+    if (G.luckyWanted && !G.luckyDone && elapsed >= 20000) {
+      G.luckyDone = true;
+      const svc = pick(APPT_SVC), time = pick(APPT_TIMES), sid = 'lk' + Date.now();
+      G.slots.push({id: sid, svc, time, state: 'open', left: 0, total: 6000, cand: null, from: 'lucky', task: false});
+      G.waitlist.push({id: 'lc' + Date.now(), name: pick(NAMES), svc, time, consent: true, willing: true, fromId: null, slotId: sid, event: 'D'});
+      G.lastJudge = {ok: true, title: '✨ 突然有空缺，剛好符合候補的需求！', body: '快看看候補名單，配對成功會有額外特效。', until: Date.now() + 5000};
+      changed = true;
+    }
+    // 突發事件 C：來電
+    G.subEl = (G.subEl || 0) + 100;
+    const call = G.call;
+    if (call && call.state === 'scheduled' && G.subEl >= call.at) { call.state = 'ringing'; call.left = 10000; changed = true; }
+    if (call && call.state === 'ringing') {
+      call.left -= 100;
+      if (call.left <= 0) {
+        call.state = 'missed'; hurt(6); sfx('bad'); changed = true;
+        G.lastJudge = {ok: false, title: '來電沒有接起來，取消沒有被記錄', body: '時段不會釋出，這種來電要趕快處理。', until: Date.now() + 5000};
+      }
+    }
+    // 待辦全部完成 → 提早結束；沒有可做的事 → 稍後結束
+    if (apptTaskDone() >= G.taskTotal && !G.call && !(G.luckyWanted && !G.luckyDone) && !G.slots.some(s => s.state === 'notified')) { G.idleAcc = (G.idleAcc || 0) + 100; if (G.idleAcc >= 1500) G.t = 0; }
+    else if (!apptCanAct()) { G.idleAcc = (G.idleAcc || 0) + 100; if (G.idleAcc >= 2500) G.t = 0; }
+    else G.idleAcc = 0;
+  } else {
+    const undecided = G.appts.some(a => a.state === 'pending' && a.kind === 'unsure' && !a.reminded && !a.skipped);
+    G.idleAcc = undecided ? 0 : (G.idleAcc || 0) + 100;
+    if (G.idleAcc >= 1500) G.t = 0;
+  }
+  if (G.t <= 0) { stageDone(G.sub); return; }
+  if (changed) render(); else { updateTimer(); updateApptBits(); }
+}
+function updateApptBits() {
+  const ct = document.querySelector('[data-calltime]');
+  if (ct && G.call) ct.textContent = Math.max(0, Math.ceil(G.call.left / 1000));
+  G.slots.forEach(s => {
+    if (s.state !== 'notified') return;
+    const el = document.querySelector(`[data-nbar="${s.id}"]`);
+    if (el) el.style.width = Math.max(0, s.left / s.total * 100) + '%';
+  });
+}
+
+function apptMsgCard(a) {
+  return `<div class="msgcard">
+    <div class="bubble clinic">📩 診所：您好，${a.name}，提醒您${a.time}有${a.svc}預約，請問您能否出席？</div>
+    <div class="bubble pat">👤 ${a.name}：${APPT_REPLY[a.kind]}</div>
+    <div class="acts">${['confirm', 'cancel', 'resched', 'track'].map(k =>
+      `<button class="act" data-act="apt" data-id="${a.id}" data-k="${k}">${APPT_ACT[k]}</button>`).join('')}</div>
+  </div>`;
+}
+function apptMatchHTML() {
+  const call = G.call && G.call.state === 'ringing'
+    ? `<div class="msgcard callcard" style="padding:8px 10px;margin:6px 0"><b>📞 ${G.call.name}：「請幫我取消 ${G.call.svc}${G.call.time}」</b>
+        <div class="acts" style="margin-top:6px"><button class="act" data-act="aptcall" data-k="record">✅ 記錄取消（<span data-calltime>${Math.ceil(G.call.left / 1000)}</span> 秒）</button>
+        <button class="act ghostbtn" data-act="aptcall" data-k="later">稍後再打</button></div></div>` : '';
+  const slots = G.slots.length ? G.slots.map(s => {
+    const label = s.state === 'open' ? (s.manualDone ? '空缺（已有人工待辦）' : G.selCand ? '👆 點這裡配對' : '空缺，可拖來候補')
+      : s.state === 'notified' ? '已通知，等待回覆…'
+      : s.state === 'pendingCand' ? '等待回覆（第三階段追蹤）'
+      : s.state === 'filled' ? '✓ 已成功安排'
+      : '📋 已加入待辦';
+    return `<div class="slotdrop ${s.state}" data-slotdrop="${s.id}" data-act="aptslot" data-sid="${s.id}">
+      <b>${s.svc}｜${s.time}</b><small>${label}</small>
+      ${s.state === 'notified' ? `<div class="bar"><i data-nbar="${s.id}" style="width:${s.left / s.total * 100}%"></i></div>` : ''}
+    </div>`;
+  }).join('') : '<small class="muted">目前沒有空缺</small>';
+  const per = 3, pages = Math.max(1, Math.ceil(G.waitlist.length / per));
+  G.candPage = Math.min(G.candPage || 0, pages - 1);
+  const shown = G.waitlist.slice(G.candPage * per, G.candPage * per + per);
+  const cands = G.waitlist.length ? shown.map(c => {
+    const open = G.slots.find(s => s.state === 'open' && s.svc === c.svc && s.time === c.time);
+    const fit = !G.hintOn ? '' : open ? '<small class="okc">✓ 有對得上的空缺</small>' : '<small class="muted">目前沒有對得上的空缺</small>';
+    const hl = G.skillHL && G.skillHL.includes(c.id) ? 'hl' : '';
+    const consent = c.consent ? '<small class="okc">✓ 同意數位通知</small>' : '<small class="warn">✗ 未同意數位通知</small>';
+    const manual = !c.consent && open ? `<button class="act ghostbtn" data-act="aptmanual" data-id="${c.id}">📋 待人工處理</button>` : '';
+    return `<div class="candcard ${G.selCand === c.id ? 'selected' : ''} ${hl}" data-cand="${c.id}" data-act="aptpick" data-id="${c.id}">
+      <b>${c.name}</b><small>${c.svc}｜${c.time}</small>${consent}${fit}${manual}
+    </div>`;
+  }).join('') : '<small class="muted">候補名單是空的</small>';
+  return `${call}<div class="dragtip">把候補拖到空缺，或先點候補再點空缺（服務、時段相同，且同意通知）</div>
+    <div class="rooms-h">空缺時段</div><div class="slotgrid">${slots}</div>
+    <div class="toolrow"><button class="act" data-act="aptskill" ${G.skillLeft < 1 || G.sub !== 1 ? 'disabled' : ''}>✨ 智慧助手（剩 ${G.skillLeft}）</button>
+      <button class="act ghostbtn" data-act="apthint">💡 配對提示：${G.hintOn ? '開' : '關'}</button></div>
+    <div class="rooms-h">候補名單 <small class="muted">（${G.waitlist.length} 位）</small></div>
+    <div class="candlist fixed">${cands}</div>
+    ${pages > 1 ? `<div class="pager"><button class="act ghostbtn" data-act="aptpage" data-d="-1" ${G.candPage <= 0 ? 'disabled' : ''}>‹ 上一批</button><small>${G.candPage + 1}／${pages}</small><button class="act ghostbtn" data-act="aptpage" data-d="1" ${G.candPage >= pages - 1 ? 'disabled' : ''}>下一批 ›</button></div>` : ''}`;
+}
+function apptRemindHTML() {
+  const list = G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure');
+  const hold = G.appts.filter(a => a.final === 'rescheduling' && !a.rebooked);
+  const rows = list.map(a => `<div class="prow">
+      <div class="pinfo"><b>${a.name}</b><small>${a.svc}｜${a.time}｜還不確定</small></div>
+      ${a.reminded ? '<div class="ok">📣 已提醒</div>' : a.skipped ? '<div class="muted">已略過</div>' : `<div class="pbtns">
+        <button class="act" data-act="aptremind" data-id="${a.id}" ${G.apptCredits < 1 ? 'disabled' : ''}>📣 提醒</button>
+        <button class="act ghostbtn" data-act="aptskip" data-id="${a.id}">略過</button></div>`}
+    </div>`).join('');
+  const candRows = (G.pendingCand || []).map((x, i) => `<div class="prow">
+      <div class="pinfo"><b>${x.cand.name}</b><small>${x.slot.svc}｜${x.slot.time}｜等待回覆（候補通知）</small></div>
+      <div class="pbtns"><button class="act" data-act="aptfollow" data-i="${i}" ${G.apptCredits < 1 ? 'disabled' : ''}>📣 追蹤回覆（1 額度）</button></div>
+    </div>`).join('');
+  const holdRows = hold.map(a => { const other = a.time === '上午' ? '下午' : '上午'; const can = G.slots.some(s => s.state === 'open' && s.svc === a.svc && s.time === other);
+    return `<div class="prow"><div class="pinfo"><b>${a.name}</b><small>${a.svc}｜待改期${can ? '（已有空缺）' : '（保留）'}</small></div><div>${can ? `<button class="act" data-act="aptplace" data-id="${a.id}">📅 安排新時段</button>` : '<span class="muted">不發提醒</span>'}</div></div>`; }).join('');
+  return `<div class="card center"><b>提醒額度：${G.apptCredits}</b>
+      <p class="muted">只能提醒「還不確定」的病患。已取消的人不會因提醒而變回確認。</p></div>
+    ${rows || '<div class="pcard center muted" style="padding:12px 0">沒有需要提醒的病患 👍</div>'}
+    ${candRows}${holdRows}`;
+}
+function apptHTML() {
+  const sub = APPT_SUB[G.sub];
+  const dots = APPT_SUB.map((x, i) => `<span class="sd ${i < G.sub ? 'done' : i === G.sub ? 'now' : ''}">${i + 1}．${x.name.replace(/^\S+ /, '')}</span>`).join('');
+  const j = G.lastJudge && Date.now() < G.lastJudge.until ? G.lastJudge : null;
+  const judge = j ? `<div class="judge ${j.ok ? 'ok' : 'bad'}"><b>${j.title}</b><div>${j.body}</div></div>`
+    : `<div class="judge idle">${sub.hint}</div>`;
+  let body, progress;
+  if (G.sub === 0) {
+    progress = `已處理 ${G.apptStats.handled}／${G.apptTotal} 則｜Combo ×${G.apptStreak}｜最長 ${G.apptMaxStreak}`;
+    body = G.inbox.length
+      ? G.inbox.map(apptMsgCard).join('')
+      : '<div class="pcard center muted" style="padding:24px 0">等待下一則回覆…</div>';
+  } else if (G.sub === 1) {
+    progress = `已完成 ${apptTaskDone()}／${G.taskTotal} 件待辦｜今日救援進度：${G.rescued}／${G.rescueTarget}`;
+    body = apptMatchHTML();
+  } else {
+    const left = G.appts.filter(a => a.state === 'pending' && a.kind === 'unsure' && !a.reminded && !a.skipped).length;
+    const cn = (G.pendingCand || []).length, hd = G.appts.filter(a => a.final === 'rescheduling' && !a.rebooked).length;
+    progress = `診所快關門了！還有 ${left + cn + hd} 件事：${left} 待確認｜${cn} 候補待回覆｜${hd} 待改期｜額度 ${G.apptCredits}`;
+    body = apptRemindHTML();
+  }
+  return `<div class="counter-scene">
+    <div class="subhead">階段 ${G.sub + 1}／3：${sub.name}</div>
+    <div class="subdots">${dots}</div>
+    <div class="taskprog">${progress}</div>
+    ${judge}
+    ${body}
+    <div class="queue"><span class="muted" style="margin-left:auto">本階段剩 ${Math.ceil(G.t / 1000)} 秒</span></div>
+  </div>`;
+}
+function apptReportHTML() {
+  const r = G.apptReport;
+  const items = [['預約總數', r.total], ['已確認出席', r.confirmed], ['確認出席率', r.confirmRate + '%'],
+    ['已完成取消', r.cancelled], ['待改期', r.reschedPending], ['成功重新安排時段', r.rebooked],
+    ['待人工處理', r.manual], ['尚未回覆', r.noReply], ['尚待處理', r.unhandled],
+    ['救援進度', r.rescued + '／' + r.rescueTarget], ['最長 Combo', '×' + r.maxStreak], ['特殊事件處理', r.events],
+    ['最終總分', r.score]];
+  const title = r.stars >= 3 ? '🏆 今日最佳診所管理員！' : r.stars === 2 ? '👍 救援表現不錯！' : '今天還有進步空間';
+  const starRow = '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars);
+  return `<div class="card"><h3>${title}</h3>
+    <p class="stars" style="font-size:28px;margin:4px 0">${starRow}</p>
+    <div class="reportgrid">${items.map(([k, v]) => `<div class="rcell"><small>${k}</small><b>${v}</b></div>`).join('')}</div>
+    <p class="muted">${r.stars >= 3 ? '✨ 每一個預約都很重要！今天你成功協助診所完成了多項預約安排。' : r.stars === 2 ? '每一個預約都很重要！下次挑戰三星，試著多救回一個診位。' : '每一個預約都很重要！下次可以先處理待回覆與候補，多救回診位。'}</p>
+    <p class="muted" style="font-size:12px">「確認出席率」只代表病患回覆確認的比例，不等於實際到診率。三星條件：完成三階段、正確率 60% 以上、救援達標且重大錯誤 1 次以內。</p></div>`;
+}
+
+/* ================= Bonus Level：大型事故（解鎖後可以玩）================= */
+function readUnlock() { try { return localStorage.getItem('clinic-bonus') === '1'; } catch (e) { return false; } }
+function unlockBonus() {
+  G.bonusUnlocked = true;
+  try { localStorage.setItem('clinic-bonus', '1'); } catch (e) {}
+}
+function startBonus(fromMain) {
+  if (fromMain) { G.mainScore = G.score; G.mainRep = G.rep; G.mainGrade = G.grade; G.mainReport = G.apptReport; G.mainDone = true; }
+  else G.mainDone = false;
+  G.score = 0; G._shownScore = 0; G.scoreHist = []; G.scoreChip = null; G.rep = 100; syncStars(); G.combo = 0; G.note = '';
+  G.stats = {total: 0, correct: 0, wrong: 0, timeout: 0, booked: 0, arrived: 0, noshow: 0};
+  G.complaint = null;
+  startDay(3);
+}
+function backMain() {
+  G.score = G.mainScore; G._shownScore = G.score; G.scoreHist = []; G.scoreChip = null; G.rep = G.mainRep; syncStars();
+  G.grade = G.mainGrade; G.apptReport = G.mainReport;
+  G.day = 2; G.phase = 'end'; G.note = '';
+  render();
+}
+function finishBonus() {
+  G.phase = 'end';
+  const s = G.stats, decided = s.correct + s.wrong + s.timeout;
+  G.accuracy = decided ? Math.round(s.correct / decided * 100) : 0;
+  G.grade = (G.accuracy >= 75 && G.stars >= 3) ? '順暢' : G.accuracy >= 55 ? '小塞車' : '大混亂';
+  G.note = '';
+  if (G.grade === '順暢') { sfx('win'); confetti(60); } else if (G.grade === '大混亂') sfx('lose');
+  render();
+}
+function bonusEndHTML() {
+  const s = G.stats;
+  return `<div class="card center"><h2>大型事故挑戰：${G.grade}</h2>
+      <p>Bonus 評價 <span class="stars">${stars(G.stars)}</span></p>
+      <p><b>${G.score}</b> 分（Bonus 另計，不影響主線）</p></div>
+    <div class="card"><p>檢傷與送治正確率：${G.accuracy}%</p>
+      <p>判斷錯誤：${s.wrong}，等太久或惡化：${s.timeout}</p></div>
+    ${leaderboardFormHTML('bonus')}
+    ${G.mainDone ? '<button data-act="backmain">↩ 回到主線結果</button>' : ''}
+    <button class="btn-ghost" data-act="restart">回到開始畫面 ↻</button>`;
+}
+
+function introHTML() {
+  return `<div class="marquee">${[0, 1, 2].map(i => `<div class="walk">${avatar({color: PALETTE[i * 2], hair: HAIRS[i]}, 'happy', 'sm')}</div>`).join('')}</div>
+    <div class="card center">
+      <h2>🏥 一週的診所</h2>
+      <p>你是一個人，要撐過三天的門診。</p>
+      <p class="muted">看條件，放行或退回；決定要提醒誰。</p>
+    </div>
+    <button data-act="start">開始 ▶</button>
+    ${G.bonusUnlocked ? '<button class="btn-ghost" data-act="bonusfromintro">🔓 Bonus：大型事故挑戰</button>' : ''}
+    ${leaderboardHTML()}`;
+}
+
+function endHTML() {
+  if (G.day === 3) return bonusEndHTML();
+  const mood = G.grade === '順暢' ? 'happy' : G.grade === '大混亂' ? 'worried' : 'neutral';
+  const msg = {
+    順暢: '櫃台和提醒都照顧到了，大部分預約的病人都準時來了。',
+    小塞車: '有些判斷出錯，也有人沒來，但診所還撐得住。',
+    大混亂: '櫃台手忙腳亂，或是提醒沒有用在刀口上。'
+  }[G.grade];
+  const s = G.stats;
+  return `<div class="card center">
+      <div class="marquee" style="margin:4px 0">${[0, 1, 2].map(i => `<div class="${G.grade === '順暢' ? 'walk' : ''}">${avatar({color: PALETTE[i * 2 + 1], hair: HAIRS[i + 1]}, mood, 'sm')}</div>`).join('')}</div>
+      <h2>${G.grade}</h2><p>${msg}</p>
+      <p>診所評價 <span class="stars">${stars(G.stars)}</span></p>
+      <p><b>${G.score}</b> 分</p></div>
+    <div class="card">
+      <p>櫃台正確率：${G.accuracy}%</p>
+      <p>預約準時來：${G.rate}%（${s.arrived}/${s.booked}）</p>
+      <p>櫃台判斷錯誤：${s.wrong}，等太久離開：${s.timeout}</p></div>
+    ${G.apptReport ? apptReportHTML() : ''}
+    ${G.bonusUnlocked ? '<button data-act="bonus">🔓 挑戰 Bonus Level：大型事故</button>' : ''}
+    ${leaderboardFormHTML()}
+    <button data-act="restart">再玩一次 ↻</button>`;
+}
+
+// 分數明顯呈現（計畫書 Phase 1 之後的需求）：每次加減分都顯示差額與原因
+function updateScoreFx() {
+  if (G._shownScore === undefined) G._shownScore = G.score;
+  const d = G.score - G._shownScore;
+  G._shownScore = G.score;
+  if (!d) return;
+  const raw = G.scoreWhy || (G.lastJudge && G.lastJudge.title) || G.note || '';
+  G.scoreWhy = null;
+  const why = raw.replace(/^[✓✗📨📞📣🙋🚑🕒🆕☕🔀🚫📢⚡\s]+/u, '').replace(/[+−-]\d+.*$/, '').split(/[:：（(]/)[0].trim().slice(0, 16);
+  G.scoreHist = [{d, why}, ...(G.scoreHist || [])].slice(0, 3);
+  G.scoreChip = {d, until: Date.now() + 2500};
+  flashQ('score', d > 0 ? 'ok' : 'bad', (d > 0 ? '+' : '−') + Math.abs(d));
+}
+function scoreChipHTML() {
+  const c = G.scoreChip;
+  if (!c || Date.now() > c.until) return '';
+  return `<span class="scorechip ${c.d > 0 ? 'pos' : 'neg'}">${c.d > 0 ? '+' : '−'}${Math.abs(c.d)}</span>`;
+}
+function scoreHistHTML() {
+  const list = G.scoreHist || [];
+  if (!list.length) return '';
+  return `<div class="scorehist">${list.map(x => `<span class="${x.d > 0 ? 'pos' : 'neg'}">${x.d > 0 ? '+' : '−'}${Math.abs(x.d)} ${x.why}</span>`).join('')}</div>`;
+}
+function render() {
+  updateScoreFx();
+  const app = $('#app');
+  // 第三天的頁面不需要底部留白（避免整頁多出一大段可以捲動的空間）
+  app.classList.toggle('appt-day', !!(cfg() && cfg().appt));
+  let html;
+  try { html = buildHTML(); }
+  catch (err) {
+    // 畫面產生失敗時不要停在舊畫面，改顯示可以恢復的提示
+    console.error(err);
+    html = `<div class="card center"><h2>畫面出了點問題</h2><p class="muted">別擔心，按下面的按鈕可以重新開始這一週。</p><button data-act="restart">重新開始</button></div>`;
+  }
+  app.innerHTML = html;
+  flushFx();
+}
+// 小視窗（事件說明、階段完成）：畫面停住，不倒數，玩家按按鈕才繼續
+function modalHTML() {
+  const m = G.modal;
+  return `<div class="card center modal-card"><h2>${m.title}</h2><p>${m.body}</p>
+    <button data-act="modalok">${m.btn}</button></div>`;
+}
+const MODAL_ACTIONS = {
+  apptA: () => apptLeaveA(),
+  apptB: () => apptLeaveB(),
+  apptEnd: () => apptFinish(),
+  apptGo: () => apptGo()
+};
+function modalOK() {
+  const m = G.modal; G.modal = null;
+  if (m && m.action && MODAL_ACTIONS[m.action]) MODAL_ACTIONS[m.action]();
+  render();
+}
+function buildHTML() {
+  let html;
+  if (G.phase === 'intro') html = introHTML();
+  else if (G.phase === 'tutorial') html = tutorialHTML();
+  else if (G.phase === 'end') html = endHTML();
+  else if (G.paused) html = hudHTML() + pauseHTML();
+  else if (G.modal) html = hudHTML() + modalHTML();
+  else if (G.phase === 'upgrade') html = hudHTML() + upgradeHTML();
+  else {
+    const body = {counter: counterHTML, remind: remindHTML, reveal: revealHTML, dayend: dayendHTML}[G.phase]();
+    html = hudHTML() + body;
+  }
+  return html;
+}
+
+function flushFx() {
+  for (const f of fxQ) {
+    const el = document.querySelector(`[data-key="${f.key}"]`);
+    if (!el) continue;
+    if (f.kind === 'ok' || f.kind === 'bad') {
+      el.classList.add('fx-' + f.kind);
+      setTimeout(() => el.classList.remove('fx-' + f.kind), 800);
+    }
+    if (f.text) {
+      const r = el.getBoundingClientRect();
+      const d = document.createElement('div');
+      d.className = 'float';
+      d.textContent = f.text;
+      d.style.color = f.kind === 'bad' ? '#d9534f' : '#1f8a70';
+      d.style.left = (r.left + r.width / 2 - 20) + 'px';
+      d.style.top = (r.top + r.height / 3) + 'px';
+      document.body.appendChild(d);
+      setTimeout(() => d.remove(), 1300);
+    }
+  }
+  fxQ = [];
+}
+
+/* ================= 點擊處理 ================= */
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  audio();   // 第一次點擊時解鎖音效
+  const a = b.dataset.act;
+  if (a === 'sound') toggleSound();
+  else if (a === 'start') startDay(0);
+  else if (a === 'pass') decide(true);
+  else if (a === 'deny') decide(false);
+  else if (a === 'jumpyes') acceptJumper();
+  else if (a === 'jumpno') declineJumper();
+  else if (a === 'pick') pickNext(+b.dataset.i, false);
+  else if (a === 'remind') setRemind(b.dataset.id, b.dataset.opt);
+  else if (a === 'endremind') endRemind();
+  else if (a === 'nextday') nextDay();
+  else if (a === 'upgrade') chooseUpgrade(+b.dataset.i);
+  else if (a === 'tutprev') { G.tutPage = Math.max(0, G.tutPage - 1); render(); }
+  else if (a === 'modalok') modalOK();
+  else if (a === 'practice') practiceTap(b.dataset.zone);
+  else if (a === 'tutnext') { G.tutPage = Math.min(TUTORIAL[G.day].length - 1, G.tutPage + 1); render(); }
+  else if (a === 'tutgo' || a === 'tutskip') { if (G.phase === 'tutorial') beginCounter(); }
+  else if (a === 'pause') setPaused(true);
+  else if (a === 'resume') setPaused(false);
+  else if (a === 'quit') { if (G.quitArmed) newGame(); else { G.quitArmed = true; render(); } }
+  else if (a === 'apt') apptAct(b.dataset.id, b.dataset.k);
+  else if (a === 'aptremind') apptRemind(b.dataset.id);
+  else if (a === 'aptskip') apptSkip(b.dataset.id);
+  else if (a === 'aptcall') apptCall(b.dataset.k);
+  else if (a === 'aptpick') apptPick(b.dataset.id);
+  else if (a === 'aptslot') apptSlotTap(b.dataset.sid);
+  else if (a === 'aptmanual') apptManual(b.dataset.id);
+  else if (a === 'aptskill') apptSkill();
+  else if (a === 'apthint') apptHintToggle();
+  else if (a === 'aptpage') apptPage(+b.dataset.d);
+  else if (a === 'aptplace') apptPlaceResched(b.dataset.id);
+  else if (a === 'aptfollow') apptFollow(+b.dataset.i);
+  else if (a === 'bonus') startBonus(true);
+  else if (a === 'bonusfromintro') startBonus(false);
+  else if (a === 'backmain') backMain();
+  else if (a === 'restart') newGame();
+  else if (a === 'savescore') saveScore();
+});
+
+/* ================= 拖曳（分診台） ================= */
+let drag = null;
+function zoneAt(x, y) { const el = document.elementFromPoint(x, y); return el ? el.closest('.zone') : null; }
+document.addEventListener('pointerdown', (e) => {
+  if (G.phase !== 'counter' || G.paused) return;
+  let el = null, type = null, idx = -1;
+  const card = e.target.closest('[data-drag]'), cas = e.target.closest('[data-cas]'), slot = e.target.closest('[data-slot]'), cand = e.target.closest('[data-cand]'), stopc = e.target.closest('[data-stop]');
+  if (card && G.front) { el = card; type = 'front'; }
+  else if (cas) { el = cas; type = 'cas'; idx = +cas.dataset.cas; }
+  else if (slot) { el = slot; type = 'slot'; idx = +slot.dataset.slot; }
+  else if (cand) { el = cand; type = 'cand'; idx = cand.dataset.cand; }
+  else if (stopc) { el = stopc; type = 'stop'; idx = +stopc.dataset.stop; }
+  if (!el) return;
+  drag = {type, card: el, idx, x0: e.clientX, y0: e.clientY, moved: false, ghost: null};
+});
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;
+  if (!drag.moved) {
+    drag.moved = true;
+    const g = drag.card.cloneNode(true);
+    g.classList.add('ghost'); g.removeAttribute('data-key');
+    document.body.appendChild(g); drag.ghost = g;
+  }
+  drag.ghost.style.left = (e.clientX - 110) + 'px';
+  drag.ghost.style.top = (e.clientY - 40) + 'px';
+  document.querySelectorAll('.zone.over').forEach(z => z.classList.remove('over'));
+  const z = zoneAt(e.clientX, e.clientY);
+  if (z) z.classList.add('over');
+  e.preventDefault();
+});
+document.addEventListener('pointerup', (e) => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.ghost) d.ghost.remove();
+  document.querySelectorAll('.zone.over').forEach(z => z.classList.remove('over'));
+  if (!d.moved) return;
+  const z = zoneAt(e.clientX, e.clientY);
+  if (d.type === 'front') {
+    if (z) decide(z.dataset.zone !== 'door', z.dataset.zone);
+  } else if (d.type === 'cas') {
+    const tz = zoneAt(e.clientX, e.clientY);
+    if (tz && tz.dataset.zone) triage(d.idx, tz.dataset.zone);
+    else { G.note = '把傷患拖到下方的檢傷色區'; render(); }
+  } else if (d.type === 'cand') {
+    const sd = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-slotdrop]');
+    if (sd) apptSend(d.idx, sd.dataset.slotdrop);
+    else { G.note = '把候補病患拖到空缺時段'; render(); }
+  } else if (d.type === 'slot') {
+    const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-slot]');
+    if (target) swapQueue(d.idx, +target.dataset.slot);
+  }
+});
+
+// 手指被系統中斷（例如來電、捲動）時，清掉拖曳殘留的影子卡片，避免畫面卡住
+document.addEventListener('pointercancel', () => {
+  if (drag && drag.ghost) drag.ghost.remove();
+  drag = null;
+  document.querySelectorAll('.zone.over').forEach(z => z.classList.remove('over'));
+});
+
+/* ================= 開始 ================= */
+$('#mute').textContent = soundOn ? '🔊' : '🔇';
+newGame();
+setInterval(loop, 100);
+</script>
+</body>
+</html>
