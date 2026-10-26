@@ -434,6 +434,7 @@ button.act:disabled{opacity:.4}
 #app .zones .zone{min-height:78px;padding:10px 4px;font-size:17px;border-width:3px}
 #app button.up{padding:8px 12px}
 #app{padding-bottom:12px!important}
+#app:has(.zones){padding-bottom:215px!important}   /* 底部分診區不遮住病人卡 */
 
 .hswipe{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
 .hswipe::-webkit-scrollbar{display:none}
@@ -922,10 +923,10 @@ function ghostLeave(p, mood, dir, text) {
   const d = document.createElement('div');
   d.className = 'ghost-p' + (dir === 'left' ? ' gl' : '');
   d.style.left = (r.left + r.width / 2 - 40) + 'px';
-  d.style.top = (r.top + 10) + 'px';
+  d.style.top = Math.max(r.top + 10, r.bottom - 90) + 'px';   // 貼在病人卡的下半部，不蓋住條件標籤
   d.innerHTML = `<div class="gbubble">${escapeHTML(text)}</div>${avatar(p, mood, 'sm')}`;
   document.body.appendChild(d);
-  setTimeout(() => d.remove(), 950);
+  setTimeout(() => d.remove(), 700);
 }
 
 /* 產生一位病人；一半機率符合目前的規則 */
@@ -964,6 +965,8 @@ function applyFit(p) {
   }
   // 停診後，內科病人會比較多
   if (G.closed && Math.random() < 0.3) p.dept = G.closed;
+  // 內科停診病人一定保留內科（否則條件會把他的科別改掉，變成其他科）
+  if (p.stopAff) p.dept = '內科';
   // 沒來機率：有爽約規則的關卡，符合規則的人高很多（看得到原因，不是純隨機）
   if (cfg().noshow) {
     p.ruleHit = noshowHit(p);
@@ -1039,6 +1042,17 @@ function releaseHeld() {
   G.queue.unshift(...G.heldQ); G.heldQ = [];
   if (!G.front && !G.choice) advanceFront();
 }
+// 停診期間：只要是內科病人（不論是不是停診名單）都要拖到「內科 → 轉診」
+function stopOpen() { return !!(G.stop && G.stop.notified < G.stop.need); }
+function stopNormalFront(p, zone) {
+  if (zone !== '內科') { stopWrong(`${p.name} 是內科病人，停診期間請拖到「內科 → 轉診」`); return render(); }
+  G.score += 5; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+  G.stats.resched = (G.stats.resched || 0) + 1;
+  G.rescheduleQ = G.rescheduleQ || []; G.rescheduleQ.push({name: p.name, dept: p.dept});
+  stamp('已轉診 ✓', true); G.scoreWhy = '內科停診轉診';
+  G.note = `${p.name} 內科停診，已通知改期 +5`;
+  advanceFront(); render();
+}
 function stopWrong(msg) {
   G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad');
   stamp('錯誤 ✗', false); G.scoreWhy = '停診任務判斷錯誤'; G.note = msg;
@@ -1056,7 +1070,9 @@ function stopFront(p, zone) {
     G.note = `已轉診 ${p.name} +8（${Math.min(S.notified, S.need)}／${S.need}）`;
     if (S.notified === S.need) { G.score += 15; G.note = '🎉 內科停診處理完成！額外 +15 分'; sfx('win'); confetti(30); }
   } else {
-    if (zone !== p.dept) { stopWrong(`${p.name} 不受停診影響，請拖到${p.dept}`); return render(); }
+    const pass = matchesAll(p);   // 不受影響的病人照一般條件判斷
+    const want = pass ? p.dept : 'door';
+    if (zone !== want) { stopWrong(pass ? `${p.name} 符合條件，請拖到${p.dept}` : `${p.name} 不符合條件，請拖到門口`); return render(); }
     G.score += 5; G.stats.correct++; G.combo++; heal(1); sfx('ok');
     G.booked.push(p);
     stamp('維持預約 ✓', true); G.scoreWhy = '維持原預約';
@@ -1073,7 +1089,7 @@ function evtHTML() {
 }
 function stopHTML() {
   const S = G.stop; if (!S || S.notified >= S.need) return '';
-  return `<div class="sticky closed">🚨 內科停診：內科病人拖到「轉診」（通知並改期）　已轉診 ${S.notified}／${S.need}</div>`;
+  return `<div class="sticky closed">🚨 內科停診：只有內科病人要通知改期　已轉診 ${S.notified}／${S.need}</div>`;
 }
 
 /* 插隊：有人說很急，玩家決定讓不讓他先進 */
@@ -1198,6 +1214,7 @@ function decide(pass, zone) {
   if (G.phase !== 'counter' || !G.front || G.countdown > 0) return;
   const p = G.front;
   if (p.fromStop && p.stopAff) return stopFront(p, zone);
+  if (stopOpen() && p.dept === '內科' && !p.emergency) return stopNormalFront(p, zone);
   if (zone === 'hold') { if (!(G.evt && G.evt.type === 'leave')) { G.note = '現在門口正常，不需要先請等待'; return render(); } return holdFront(p); }
   if (G.evt && G.evt.type === 'leave' && zone === 'door') { G.note = '同事請假中，門口暫停，可以先請等待'; return render(); }
   const match = p.emergency ? true : matchesAll(p);
@@ -1484,7 +1501,7 @@ function loop() {
       if (idx > (G.stageIdx || 0)) {
         G.stageIdx = idx; G.poolNow = DAY1_STAGES[idx].keys;
         G.freshKey = DAY1_STAGES[idx].newKey; G.freshUntil = Date.now() + 3000;
-        G.note = DAY1_STAGES[idx].banner; changed = true;
+        changed = true;   // 不再顯示「新條件」提示字，省空間
       }
     }
     if (G.complaint && Date.now() > G.complaintUntil) { G.complaint = null; changed = true; }
@@ -1645,7 +1662,7 @@ function hudHTML() {
   const tcls = ratio < 0.15 ? 'crit' : ratio < 0.3 ? 'warn' : 'ok';
   const done = G.stats.correct + G.stats.wrong + G.stats.timeout;
   const pauseBtn = timed && !G.paused && !G.modal ? '<button class="pausebtn" data-act="pause">⏸ 暫停</button>' : '';
-  return `<div><span class="event">🗓 ${cfg().event}</span>${G.lastUpgrade ? `<span class="event upchip">🛠 本週升級：${G.lastUpgrade}</span>` : ''}</div>
+  return `<div>${G.lastUpgrade ? `<span class="event upchip">🛠 本週升級：${G.lastUpgrade}</span>` : ''}</div>
     <div class="hud"><span>${dayTag()}｜<b>${PHASE_NAME[G.phase]}</b></span>
       <span class="hudright"><span id="timer">${timed ? Math.ceil(G.t / 1000) + ' 秒' : ''}</span>${pauseBtn}</span></div>
     ${timed ? `<div class="tprog ${tcls}" id="tprog"><i id="tprogbar" style="width:${ratio * 100}%"></i></div>` : ''}
@@ -1830,7 +1847,7 @@ function closedHere(p) { return !!(G.closed && p.dept === G.closed && !p.emergen
 function zonesHTML() {
   const stopOn = !!(G.stop && G.stop.notified < G.stop.need);
   // 只有「受停診影響」的病人才看到內科轉診；不受影響的病人照一般規則處理
-  const frontAff = !!(G.front && G.front.fromStop && G.front.stopAff && stopOn);
+  const frontAff = !!(G.front && stopOn && G.front.dept === '內科' && !G.front.emergency);
   const frontStopNot = !!(G.front && G.front.fromStop && !G.front.stopAff);
   const transferring = closedHere(G.front) || frontAff;
   const z = d => (G.closed === d)
@@ -1841,7 +1858,7 @@ function zonesHTML() {
   const tip = frontAff
     ? '📣 內科停診病人請拖到「內科 → 轉診」：通知並改期，不能丟到門口'
     : frontStopNot
-      ? `📣 這位不受停診影響，請拖到他的科別（${G.front.dept}）`
+      ? '📣 這位不受停診影響，照一般條件處理'
       : '👆 拖到他的科別診間放行；不符合就拖到門口';
   const resched = G.closed ? '<div class="zone transfer" data-zone="resched">📣 通知與重新安排<br><small>等待安排新時段</small></div>' : '';
   return `<div class="zones"><div class="dragtip">${tip}</div>${DEPTS.map(z).join('')}${resched}${G.evt && G.evt.type === 'leave' ? '<div class="zone hold" data-zone="hold">🪑 先請等待<br><small>門口請假中，之後再處理</small></div>' : '<div class="zone door" data-zone="door">🚪 門口</div>'}</div>`;
@@ -1996,7 +2013,7 @@ const TUTORIAL = [
     {title: '練習：放行一位病人', type: 'practice', text: '', visual: ''}
   ],
   [ // 第二天
-    {title: '第二天：四段', text: '0–20 秒：兩人同時到，先點誰先叫<br>20–35 秒：急診，立刻放行<br>35–50 秒：內科停診，通知改期<br>50–120 秒：三種混在一起', visual: ''},
+    {title: '第二天', text: '今天會遇到三種情形，每種先練習一次。', visual: ''},
     {title: '① 兩人選擇', type: 'practice', spec: {kind: 'pick', cards: [{name: '🟢 陳小華', note: '一般感冒，等了 8 分鐘'}, {name: '🔴 林阿姨', note: '胸口痛，臉色蒼白，等了 2 分鐘'}], ok: 1, bad: '林阿姨比較緊急，先叫她。', okMsg: '危急的人先處理。'}},
     {title: '② 急診', type: 'practice', spec: {kind: 'drag', who: '<b>🚑 急診病人</b><span>胸痛，需要立刻處理</span>', rule: '急診：不管科別，放到任何診間都可以', ok: ['內科', '小兒科', '牙科'],
       zones: [['內科', '🩺 內科', ''], ['小兒科', '🧸 小兒科', ''], ['牙科', '🦷 牙科', ''], ['door', '🚪 門口（退回）', 'door']], bad: '急診不能退回，要立刻放行。', okMsg: '急診已放行。'}},
