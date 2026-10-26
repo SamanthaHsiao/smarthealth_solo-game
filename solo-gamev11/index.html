@@ -1996,8 +1996,12 @@ const TUTORIAL = [
     {title: '練習：放行一位病人', type: 'practice', text: '', visual: ''}
   ],
   [ // 第二天
-    {title: '怎麼玩', text: '① 兩人同時到：先點誰先叫<br>② 急診：不管科別，立刻放行<br>③ 內科停診：通知改期，不放進診間<br>最後三種會混在一起來。', visual: `<div class="tv-note">0–20 秒 兩人 ｜ 20–35 急診 ｜ 35–50 停診</div>`},
-    {title: '練習：放行一位病人', type: 'practice', text: '', visual: ''}
+    {title: '第二天：四段', text: '0–20 秒：兩人同時到，先點誰先叫<br>20–35 秒：急診，立刻放行<br>35–50 秒：內科停診，通知改期<br>50–120 秒：三種混在一起', visual: ''},
+    {title: '① 兩人選擇', type: 'practice', spec: {kind: 'pick', cards: [{name: '🟢 陳小華', note: '一般感冒，等了 8 分鐘'}, {name: '🔴 林阿姨', note: '胸口痛，臉色蒼白，等了 2 分鐘'}], ok: 1, bad: '林阿姨比較緊急，先叫她。', okMsg: '危急的人先處理。'}},
+    {title: '② 急診', type: 'practice', spec: {kind: 'drag', who: '<b>🚑 急診病人</b><span>胸痛，需要立刻處理</span>', rule: '急診：不管科別，放到任何診間都可以', ok: ['內科', '小兒科', '牙科'],
+      zones: [['內科', '🩺 內科', ''], ['小兒科', '🧸 小兒科', ''], ['牙科', '🦷 牙科', ''], ['door', '🚪 門口（退回）', 'door']], bad: '急診不能退回，要立刻放行。', okMsg: '急診已放行。'}},
+    {title: '③ 內科停診', type: 'practice', spec: {kind: 'drag', who: '<b>王大明</b><span>預約：內科（已停診）</span>', rule: '內科停診：通知改期，不要放進診間', ok: 'resched',
+      zones: [['內科', '🩺 內科', ''], ['resched', '📣 通知改期', 'transfer'], ['小兒科', '🧸 小兒科', '']], bad: '內科停診要「通知改期」，不能放進診間。', okMsg: '已通知改期。'}}
   ],
   [ // 第三天
     {title: '怎麼玩', text: '回覆一則一則進來，選正確的處理方式。之後把候補拖到對得上的空缺。', visual: `<div class="tv-note">回覆 → 處理 → 配對</div>`},
@@ -2020,8 +2024,17 @@ const PRACTICE = {
   3: {title: '練習：檢傷一位傷患', who: '<b>傷患 A</b><span>🚶 不能走路｜🫁 呼吸 34 次/分</span>', rule: '呼吸超過 30 → 🔴 立即', ok: 'red',
     zones: [['red', '🔴 立即', 'tri-red'], ['yellow', '🟡 延遲', 'tri-yellow'], ['green', '🟢 輕傷', 'tri-green']], bad: '呼吸超過 30，應該是 🔴 立即。', okMsg: '分類正確。'}
 };
+// 目前練習頁的情境：頁面可自帶 spec（第二天三種情形），否則用該天的預設
+function curSpec() {
+  const pg = TUTORIAL[G.day] ? TUTORIAL[G.day][G.tutPage] : null;
+  return (pg && pg.spec) || PRACTICE[G.day];
+}
 function practiceHTML() {
-  const pr = PRACTICE[G.day]; if (!pr) return '';
+  const pr = curSpec(); if (!pr) return '';
+  if (pr.kind === 'pick') {
+    const cards = pr.cards.map((c, i) => `<button class="act" data-act="practicepick" data-i="${i}" style="display:block;width:100%;text-align:left;margin:6px 0">${c.name}<br><small>${c.note}</small></button>`).join('');
+    return `${cards}<div class="judge ${G.practiceDone ? 'ok' : 'idle'}">${G.practiceMsg || '點一位，決定先叫誰。'}</div>`;
+  }
   const zs = pr.zones.map(([k, label, cls]) => `<div class="zone ${cls}" data-zone="${k}">${label}</div>`).join('');
   return `<div class="tv-card" data-drag="1"><div class="tv-fields">${pr.who}</div></div>
     <p><b>${pr.rule}</b></p>
@@ -2034,9 +2047,16 @@ function inPractice() {
   return !!(pg && pg.type === 'practice');
 }
 function practiceTap(zone) {
-  const pr = PRACTICE[G.day]; if (!pr) return;
-  if (zone === pr.ok) { G.practiceDone = true; G.practiceMsg = '✓ 答對了！' + pr.okMsg + ' 可以繼續。'; }
+  const pr = curSpec(); if (!pr || pr.kind === 'pick') return;
+  const ok = Array.isArray(pr.ok) ? pr.ok.includes(zone) : zone === pr.ok;
+  if (ok) { G.practiceDone = true; G.practiceMsg = '✓ 答對了！' + pr.okMsg + ' 可以繼續。'; }
   else G.practiceMsg = `不符合：${pr.bad}`;
+  render();
+}
+function practicePick(i) {
+  const pr = curSpec(); if (!pr || pr.kind !== 'pick') return;
+  if (i === pr.ok) { G.practiceDone = true; G.practiceMsg = '✓ 答對了！' + pr.okMsg + ' 可以繼續。'; }
+  else G.practiceMsg = `再想想：${pr.bad}`;
   render();
 }
 function tutorialHTML() {
@@ -2773,7 +2793,8 @@ document.addEventListener('click', (e) => {
   else if (a === 'tutprev') { G.tutPage = Math.max(0, G.tutPage - 1); render(); }
   else if (a === 'modalok') modalOK();
   else if (a === 'practice') practiceTap(b.dataset.zone);
-  else if (a === 'tutnext') { G.tutPage = Math.min(TUTORIAL[G.day].length - 1, G.tutPage + 1); render(); }
+  else if (a === 'practicepick') practicePick(+b.dataset.i);
+  else if (a === 'tutnext') { G.tutPage = Math.min(TUTORIAL[G.day].length - 1, G.tutPage + 1); G.practiceDone = false; G.practiceMsg = null; render(); }
   else if (a === 'tutgo' || a === 'tutskip') { if (G.phase === 'tutorial') beginCounter(); }
   else if (a === 'pause') setPaused(true);
   else if (a === 'resume') setPaused(false);
