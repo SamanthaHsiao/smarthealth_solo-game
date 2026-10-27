@@ -546,6 +546,18 @@ button.act:disabled{opacity:.4}
 .pt-chars > *:nth-child(3){animation-delay:.4s!important}
 .pt-ok{background:#d9fff0!important;border-radius:16px!important;animation:pop .5s ease both}
 .pt-sec{border:3px solid #ffd6e7!important;border-radius:18px!important;color:#5a2a7a!important;font-weight:800;box-shadow:0 5px 0 #ffd6e7!important}
+.edu{background:#fffdf3;border:2px solid #ffe08a;text-align:left}
+.edu h3{margin:4px 0 6px;font-size:19px}
+.edu p{font-size:15px;line-height:1.6;margin:4px 0}
+.edu-acts{padding-left:20px;font-size:15px;line-height:1.6;margin:6px 0}
+.edu-more summary{font-weight:700;cursor:pointer;margin-top:6px;font-size:15px}
+.edu-more p{font-size:14px;color:var(--mute)}
+.pt-chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}
+.pt-chip{font-size:13px;padding:4px 10px;border-radius:999px;background:#eee;color:#777}
+.pt-chip.done{background:#d9fff0;color:#1f7a4a}
+.pt-chip.now{background:#ff8a3d;color:#fff;font-weight:800}
+.pt-slot:not(.on){background:#eeeeee;border-color:#bbb;color:#666}
+.zone.wide{grid-column:1/-1}
 </style>
 </head>
 <body>
@@ -586,8 +598,8 @@ const DAY_CFG = [
    event:'第二天：先決定誰先叫；內科臨時停診時，把內科病人拖到「內科 → 通知改期」。'},
   {appt:true, pool:[], size:0, switchMs:0, jump:0, counterMs:180000, spawnMs:4000, credits:0, risk:0, emergency:0,
    event:'第三天：CESFAM 忙碌的一天。處理病人回覆、安排空缺時段、最後發提醒。'},
-  {mass:true, pool:['dept','period','age','visit'], size:3, switchMs:7000, jump:0, counterMs:75000, spawnMs:4000, ramp:true, credits:0, risk:0, emergency:0,
-   event:'Bonus：大型事故挑戰。中途救護車會一次送來一批傷患。依 START 檢傷法把傷患分成 🔴立即 🟡延遲 🟢輕傷，再送進對應的治療區。'}
+  {mass:true, pool:['dept','period','age','visit'], size:3, switchMs:7000, jump:0, counterMs:60000, spawnMs:4000, ramp:true, credits:0, risk:0, emergency:0,
+   event:'Bonus：大型事故挑戰。中途會發生大型事故，救護車一次送來一批傷患。依 START 檢傷法把傷患分成 🔴立即 🟡延遲 🟢輕傷，再送進對應的治療區。'}
 ];
 const DAYS = ['星期一','星期二','星期三'];
 function dayTag() { return G.day === 3 ? 'Bonus 大型事故挑戰' : `第 ${G.day + 1} 天 ${DAYS[G.day]}`; }
@@ -606,7 +618,7 @@ const DAY2_MIX_AT = 42000;
 // 大亂斗中內科「通知改期」突然開放的時段（每段 10 秒，窗口外內科病人照一般條件）
 const DAY2_WIN = [[51000, 61000], [80000, 90000]];
 const DAY2_STOP_AT = 29000;
-const DAY2_NOTE = {2: '🚑 急診病人來了：不管科別，立刻安排看診！', 3: '🚫 突發任務：一般醫師門診（內科）上午臨時停診！有幾位病人需要處理！', 4: '🔀 大亂斗！兩人選擇、急診、內科停診會混在一起。'};
+const DAY2_NOTE = {2: '🚑 急診病人來了：請拖到「通知醫護人員評估」！', 3: '🚫 突發任務：一般醫師門診（內科）上午臨時停診！有幾位病人需要處理！', 4: '🔀 大亂斗！兩人選擇、急診、內科停診會混在一起。'};
 const COMPLAINT_MS = 2500;
 const MAX_STARS = 5;
 const REMIND_OPTS = [
@@ -640,7 +652,11 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const pct = (x) => Math.round(x * 100) + '%';
 const stars = (n) => '★'.repeat(n) + '☆'.repeat(MAX_STARS - n);
 // 評價：內部是 0–100 的數值，每 20 點換算一顆星。錯誤只扣一小部分，逾時才明顯下降
-function hurt(n) { G.rep = Math.max(0, (G.rep ?? 100) - n); syncStars(); }
+function hurt(n) {
+  const before = G.stars;
+  G.rep = Math.max(0, (G.rep ?? 100) - n); syncStars();
+  if (G.stars < before) { sfx('bad'); apptBurst('⭐ 評價下降一顆星'); }
+}
 function heal(n) { G.rep = Math.min(100, (G.rep ?? 100) + n); syncStars(); }
 function syncStars() { G.stars = Math.max(0, Math.min(MAX_STARS, Math.ceil((G.rep ?? 100) / 20))); }
 function escapeHTML(s) {
@@ -1118,7 +1134,7 @@ function startStop() {
   G.evt = null;
   G.queue.unshift(...shuffle(cards));
   if (!G.front && !G.choice && G.queue.length) { G.front = G.queue.shift(); onNewFront(); }
-  G.note = DAY2_NOTE[3];
+  G.note = DAY2_NOTE[3] + eduTip('d2a');
 }
 // 同事請假期間：不符合的病人先請稍候（耐心暫停），請假結束後排回佇列
 function holdFront(p) {
@@ -1144,12 +1160,34 @@ function stopNormalFront(p, zone) {
   G.score += 5; G.stats.correct++; G.combo++; heal(1); sfx('ok');
   G.stats.resched = (G.stats.resched || 0) + 1;
   G.rescheduleQ = G.rescheduleQ || []; G.rescheduleQ.push({name: p.name, dept: p.dept});
-  stamp('已轉診 ✓', true); G.scoreWhy = '內科停診轉診';
+  stamp('已通知 ✓', true); G.scoreWhy = '內科停診通知';
   G.note = `${p.name} 內科停診，已通知改期 +5`;
   advanceFront(); render();
 }
+// 急診：先拖到「通知醫護人員評估」（通知後病人留在櫃台），再拖到任一科別安排看診
+function emergencyWrong(msg) {
+  G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(8); sfx('bad');
+  stamp('錯誤 ✗', false); G.scoreWhy = '急診處理錯誤'; G.note = msg; render();
+}
+function emergencyFront(p, zone) {
+  if (!p.notified) {
+    if (zone !== 'notify') return emergencyWrong(`${p.name} 是急診，請先拖到「通知醫護人員評估」`);
+    p.notified = true; G.score += 10; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+    G.scoreWhy = '及時通知專業人員';
+    G.note = `🚑 ${p.name} 已通知醫護人員評估 +10，請再安排看診` + eduTip('d2c');
+    stamp('已通知 ✓', true); render(); return;
+  }
+  if (!DEPTS.includes(zone)) return emergencyWrong(`${p.name} 已通知醫護人員，請拖到科別安排看診`);
+  G.score += 10; G.stats.correct++; G.combo++; heal(1); sfx('ok');
+  G.stats.emergency = (G.stats.emergency || 0) + 1;
+  G.scoreWhy = '通知後安排看診';
+  G.note = `🚑 ${p.name} 已安排${zone}看診 +10`;
+  stamp('安排看診 ✓', true);
+  ghostLeave(p, 'happy', 'right', '謝謝，我會盡快看診！');
+  advanceFront(); render();
+}
 function stopWrong(msg) {
-  G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad');
+  G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(8); sfx('bad');
   stamp('錯誤 ✗', false); G.scoreWhy = '停診任務判斷錯誤'; G.note = msg;
 }
 // 停診病人來到櫃台時：內科病人拖到「內科 → 通知改期」；其他病人照原本的科別安排看診
@@ -1161,8 +1199,8 @@ function stopFront(p, zone) {
     G.score += 8; G.stats.correct++; G.combo++; heal(1); sfx('ok');
     G.stats.resched = (G.stats.resched || 0) + 1;
     G.rescheduleQ = G.rescheduleQ || []; G.rescheduleQ.push({name: p.name, dept: p.dept});
-    stamp('已轉診 ✓', true); G.scoreWhy = '內科停診轉診';
-    G.note = `已轉診 ${p.name} +8（${Math.min(S.notified, S.need)}／${S.need}）`;
+    stamp('已通知 ✓', true); G.scoreWhy = '內科停診通知';
+    G.note = `已通知 ${p.name} +8（${Math.min(S.notified, S.need)}／${S.need}）`;
     if (S.notified === S.need) { G.score += 15; G.note = '🎉 內科停診處理完成！額外 +15 分'; sfx('win'); confetti(30); }
   } else {
     const pass = matchesAll(p);   // 不受影響的病人照一般條件判斷
@@ -1185,7 +1223,7 @@ function evtHTML() {
 function stopHTML() {
   const S = G.stop; if (!stopOpen()) return '';
   if (G.dayPhase >= 4) return G.winOpen ? '<div class="sticky closed">📣 內科 → 通知改期 開放中，內科病人請拖到這裡</div>' : '';
-  return `<div class="sticky closed">🚨 內科停診中：內科病人拖到「內科 → 通知改期」　已轉診 ${S.notified}／${S.need}</div>`;
+  return `<div class="sticky closed">🚨 內科停診中：內科病人拖到「內科 → 通知改期」　已通知 ${S.notified}／${S.need}</div>`;
 }
 
 /* 插隊：有人說很急，玩家決定讓不讓他先進 */
@@ -1200,7 +1238,7 @@ function makeJumper() {
 // 插隊判斷：急的人讓他先進 +5；不急卻插隊 −3、排隊的人會抱怨
 function jumperJudge(ok, pts, title, body) {
   if (ok) { G.score += pts; G.stats.correct++; G.combo++; heal(1); sfx('ok'); }
-  else { G.score -= Math.abs(pts); G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad'); }
+  else { G.score -= Math.abs(pts); G.stats.wrong++; G.combo = 0; hurt(8); sfx('bad'); }
   G.note = (ok ? '✓ ' : '✗ ') + title + '：' + body;
   G.scoreWhy = title;
 }
@@ -1264,6 +1302,7 @@ function startDay(d) {
 // 教學結束，正式開始櫃台倒數
 function beginCounter() {
   if (G.phase !== 'tutorial') return;
+  if (!cfg().appt && !cfg().mass) { G.refillAcc = 0; G.refillIn = 200; }   // 一開始櫃台沒人，立刻叫第一位
   G.phase = 'counter'; G.t = cfg().counterMs; G.totalT = G.t; G.rampFactor = 1; G.rampStage = 0; G.patFactor = 1;
   if (cfg().stages) { G.stageIdx = 0; G.poolNow = DAY1_STAGES[0].keys; G.freshKey = null; rotateRule(); }
   if (cfg().phased) { G.evtDone = true; G.evt = null; }   // 第二天不再隨機出現當機／請假，改用固定時間表
@@ -1273,13 +1312,15 @@ function beginCounter() {
   } else {
     // 先倒數 3-2-1，時間和病人都還沒開始
     G.countdown = 3; G.cdAcc = 0;
+    // 第一位病人在倒數時就已經到櫃台，倒數結束馬上可以操作（不再顯示「等待下一位病人」）
+    if (!cfg().appt && !cfg().mass && !G.front) spawn();
   }
   render();
 }
 // 倒數結束後才真正開始：發第一位病人或啟動第三天
 function startPlay() {
   G.countdown = 0;
-  if (!cfg().appt && !cfg().mass) spawn();
+  if (!cfg().appt && !cfg().mass && !G.front) spawn();
   G.note = G.note || '';
   render();
 }
@@ -1311,6 +1352,7 @@ function decide(pass, zone) {
   const p = G.front;
   if (p.fromStop && p.stopAff) return stopFront(p, zone);
   if (stopOpen() && p.dept === '內科' && !p.emergency) return stopNormalFront(p, zone);
+  if (p.emergency) return emergencyFront(p, zone);
   if (zone === 'hold') { if (!(G.evt && G.evt.type === 'leave')) { G.note = '現在門口正常，不需要先請稍候'; return render(); } return holdFront(p); }
   if (G.evt && G.evt.type === 'leave' && zone === 'door') { G.note = '同事請假中，門口暫停，可以先請稍候'; return render(); }
   const match = p.emergency ? true : matchesAll(p);
@@ -1332,10 +1374,11 @@ function decide(pass, zone) {
     G.score += pts; G.stats.correct++;
     if (pass) {
       if (p.emergency) { G.stats.emergency = (G.stats.emergency || 0) + 1; G.note = `🚑 ${p.name} 急診已處理 +${pts}`; }
-      else { G.booked.push(p); G.note = `${p.name} 安排看診，今天稍後到診 +${pts}`; }
+      else { G.booked.push(p); G.note = `${p.name} 安排看診，今天稍後到診 +${pts}` + eduTip('d1a'); }
       ghostLeave(p, 'happy', 'right', pick(THANKS));
     } else {
       G.note = `${p.name} 請回 +${pts}`;
+      G.note += eduTip('d1b');
       ghostLeave(p, 'neutral', 'left', pick(OKAY));
     }
     if (G.combo % 4 === 0) {
@@ -1349,8 +1392,8 @@ function decide(pass, zone) {
     if (G.comboShield > 0) { G.comboShield--; G.note = '連擊保險生效，連擊沒有中斷'; }
     else G.combo = 0;
     G.score -= 5; G.stats.wrong++;
-    hurt(3);
-    if (p.disaster) { G.score -= 5; hurt(3); }
+    hurt(8);
+    if (p.disaster) { G.score -= 5; hurt(8); }
     G.note = p.emergency ? `${p.name} 是急診，不能請回 −5、評價下降`
       : match ? `${p.name} 其實符合規則，不該請回 −5、評價下降` : `${p.name} 不符合規則，不該安排看診 −5、評價下降`;
     setComplaint(p.emergency ? '我快不行了，你怎麼不讓我進去！' : match ? '我明明符合條件啊！' : '你怎麼讓我進來？我不是這一類！');
@@ -1362,7 +1405,7 @@ function decide(pass, zone) {
   render();
 }
 
-/* 內科停診轉診：拖到其他開著的科別＝轉診成功；拖到門口或停診的科別＝投訴 */
+/* 內科停診通知：拖到其他開著的科別＝轉診成功；拖到門口或停診的科別＝投訴 */
 function transfer(p, zone) {
   // 停診流程（計畫書 3.2）：通知病人 → 記錄待重新安排，不可轉往不相關的科別
   const ok = zone === 'resched';
@@ -1383,7 +1426,7 @@ function transfer(p, zone) {
   } else {
     const door = zone === undefined || zone === 'door';
     G.score -= 5; G.stats.wrong++; G.combo = 0;
-    hurt(3);
+    hurt(8);
     G.note = door ? `${p.name} 不能請回！請通知他並重新安排 −5、評價下降` : `${p.name} 不能轉去其他科別，請用「通知與重新安排」 −5、評價下降`;
     setComplaint(door ? '你要把我趕出去？我還要看病！' : '我要看的是內科，不是這裡！');
     ghostLeave(p, 'angry', 'left', '轉錯了！');
@@ -1396,7 +1439,7 @@ function transfer(p, zone) {
 
 // 櫃台空了之後等多久來下一位（人潮變多時會縮短），最短 0.8 秒
 function refillDelay() {
-  return Math.max(400, Math.round(spawnBase() * G.spawnFactor * G.rampFactor * 0.25));   // 櫃台空太久會很無聊，縮短等待
+  return Math.max(250, Math.round(spawnBase() * G.spawnFactor * G.rampFactor * 0.15));   // 櫃台空太久會很無聊，縮短等待
 }
 
 /* 換下一位：櫃台空了就很快叫下一位 */
@@ -1437,13 +1480,13 @@ function pickNext(i, auto) {
     stamp('先看 ' + chosen.name, true);
   } else if (uc > uo) {
     G.score += 3;
-    G.note = `${chosen.name}（${URG[uc].label}）先看，判斷正確 +3。${other.name} 再等一下`;
+    G.note = `${chosen.name}（${URG[uc].label}）先看，判斷正確 +3。${other.name} 再等一下` + eduTip('d2b');
     stamp('判斷正確 ✓', true);
     flashQ('front', 'ok', '+3');
     sfx('ok');
   } else if (uc === uo) {
     if (pcW <= poW + 1000) {   // 等得比較久（耐心較少）→ 正確
-      G.score += 3; G.note = `${chosen.name} 和 ${other.name} 同樣緊急，${chosen.name} 等比較久，先看 +3`;
+      G.score += 3; G.note = `${chosen.name} 和 ${other.name} 同樣緊急，${chosen.name} 等比較久，先看 +3` + eduTip('d2b');
       stamp('等較久 ✓', true); flashQ('front', 'ok', '+3'); sfx('ok');
     } else {
       G.score -= 3; G.note = `同樣緊急，應先叫等比較久的 ${other.name} −3`;
@@ -1806,6 +1849,7 @@ function triageHTML() {
   const bays = G.bays.map((b, i) => {
     const red = b.kind === 'red';
     const label = red ? '🔴 急救床' : `🛏 ${b.n} 號床`;
+    if (!b.p && bayOut(b)) return `<div class="bed empty"><div class="bedtag">${label}</div><small class="bedhint">🚧 維修中</small></div>`;
     if (b.p) return `<div class="bed occ ${red ? 'redbed' : ''}"><div class="bedtag">${label}</div>
       <div class="bedscene"><div class="pt">${avatar(b.p, 'happy', 'xs')}</div><i class="heart">♥</i><div class="blanket"></div></div>
       <div class="bar"><i data-baybar="${i}" style="width:${b.left / TREAT[b.p.cat] * 100}%"></i></div></div>`;
@@ -1877,9 +1921,9 @@ function triage(ci, cat) {
   if (cat === c.cat) {
     G.score += 10; G.stats.correct++; G.combo++; sfx('ok');
     G.lastJudge = {ok: true, title: `✓ ${CAT_NAME[cat]} 正確 +10`, body: reason, until: Date.now() + 6000};
-    G.note = `${c.name} 分為 ${CAT_NAME[cat]}，正確 +10`;
+    G.note = `${c.name} 分為 ${CAT_NAME[cat]}，正確 +10` + eduTip('bonus');
   } else {
-    G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(3); sfx('bad');
+    G.score -= 5; G.stats.wrong++; G.combo = 0; hurt(8); sfx('bad');
     G.lastJudge = {ok: false, title: `✗ 你分成 ${CAT_NAME[cat]}，應該是 ${CAT_NAME[c.cat]}，−5、評價下降`, body: reason, until: Date.now() + 6000};
     G.note = `${c.name} 分類錯誤 −5、評價下降`;
   }
@@ -1891,13 +1935,14 @@ function triage(ci, cat) {
   render();
 }
 // 自動分流：紅先進急救床、黃進空的治療床、綠進快速處置（最多 3 人）
+function bayOut(b) { return false; }   // 床位維修已取消
 function routeWaiting() {
   const order = {red: 0, yellow: 1, green: 2};
   G.waitRoom.sort((a, b) => order[a.cat] - order[b.cat]);
   for (const p of [...G.waitRoom]) {
     let bay = null;
     if (p.cat === 'red') bay = G.bays.find(b => b.kind === 'red' && !b.p);
-    else if (p.cat === 'yellow') bay = G.bays.find(b => b.kind === 'bed' && !b.p);
+    else if (p.cat === 'yellow') bay = G.bays.find(b => b.kind === 'bed' && !b.p && !bayOut(b));
     else if (G.minor.length < 3) {
       G.minor.push({p, left: TREAT.green});
       G.waitRoom = G.waitRoom.filter(x => x !== p);
@@ -1925,11 +1970,13 @@ function makeCasualtyOf(cat) {
 }
 function massTick() {
   let changed = false;
-  if (!G.disasterDone && G.totalT - G.t >= 40000) {
+  if (!G.disasterDone && G.totalT - G.t >= 25000) {
     G.disasterDone = true;
     const batch = shuffle(['red', 'yellow', 'yellow', 'green']).map(makeCasualtyOf);
     G.casualties.push(...batch);
-    G.note = '🚑 救護車到了！一次送來 4 位傷患，快分類！';
+    G.note = '🚨 大型事故！救護車一次送來 4 位傷患';
+    apptBurst('🚨 大型事故發生！');
+    G.modal = {title: '🚨 大型事故發生！', body: '請盡快分類，並送進對應的床位。', btn: '開始分類 ▶', action: null};
     sfx('bad'); changed = true;
   }
   if (G.spawnAcc >= spawnBase() * G.spawnFactor * G.rampFactor && G.casualties.length < 3) {
@@ -1976,13 +2023,14 @@ function zonesHTML() {
     : (frontAff && d === '內科')
       ? `<div class="zone transfer" data-zone="內科">📣 內科 → 通知改期<br><small>通知並改期（不要丟門口）</small></div>`
       : `<div class="zone" data-zone="${d}">${VAL_ICON.dept[d]} ${d}</div>`;
-  const tip = frontAff
+  const tip = (G.front && G.front.emergency) ? (G.front.notified ? '🚑 已通知醫護人員，請拖到科別安排看診' : '🚑 急診：請先拖到「通知醫護人員評估」') : frontAff
     ? '📣 內科停診病人請拖到「內科 → 通知改期」：通知並改期，不能丟到門口'
     : frontStopNot
       ? '📣 這位不受停診影響，照一般條件處理'
       : '👆 拖到他的科別診間安排看診；不符合就拖到門口';
+  const notify = (G.front && G.front.emergency && !G.front.notified) ? '<div class="zone transfer wide" data-zone="notify">🚑 通知醫護人員評估<br><small>先通知，再安排看診</small></div>' : '';
   const resched = G.closed ? '<div class="zone transfer" data-zone="resched">📣 通知與重新安排<br><small>等待安排新時段</small></div>' : '';
-  return `<div class="zones"><div class="dragtip">${tip}</div>${DEPTS.map(z).join('')}${resched}${G.evt && G.evt.type === 'leave' ? '<div class="zone hold" data-zone="hold">🪑 先請稍候<br><small>門口請假中，之後再處理</small></div>' : '<div class="zone door" data-zone="door">🚪 門口</div>'}</div>`;
+  return `<div class="zones"><div class="dragtip">${tip}</div>${notify}${DEPTS.map(z).join('')}${resched}${G.evt && G.evt.type === 'leave' ? '<div class="zone hold" data-zone="hold">🪑 先請稍候<br><small>門口請假中，之後再處理</small></div>' : '<div class="zone door" data-zone="door">🚪 門口</div>'}</div>`;
 }
 
 function countdownHTML() {
@@ -2020,7 +2068,7 @@ function counterHTML() {
   const waiting = cfg().walk ? '' : G.queue.slice(0, 4).map(q => `<span class="qp walk">${avatar(q, 'neutral', 'xs')}</span>`).join('');
   const card = p ? `
     <div class="pcard ${enterCls('f' + p.id)}" data-key="front" data-drag="1">
-      ${p.emergency ? '<div class="emg">🚑 急診！請立刻安排看診</div>' : ''}
+      ${p.emergency ? `<div class="emg">${p.notified ? '🚑 急診：已通知，請安排看診' : '🚑 急診！請先通知醫護人員評估'}</div>` : ''}
       ${closedHere(p) ? '<div class="emg transfer-tag">📣 內科停診：請拖到「通知與重新安排」</div>' : ''}
       <div class="row">${avatar(p, p.patience < 2000 ? 'impatient' : 'neutral')}
         <div style="flex:1"><b style="font-size:19px">${p.name}</b>
@@ -2131,7 +2179,7 @@ function revealHTML() {
 function dayendHTML() {
   const isLast = G.day >= 1;
   const s = G.stats;
-  return `<div class="card center"><h2>${dayTag()} 結束 🎉</h2>
+  return `${eduCardHTML(G.day === 0 ? 'd1' : 'd2')}<div class="card center"><h2>${dayTag()} 結束 🎉</h2>
     <p>診所評價 <span class="stars">${stars(G.stars)}</span></p>
     <p>櫃台正確 ${s.correct} 次｜預約 ${s.booked} 位，準時來 ${s.arrived} 位</p>
     <p class="muted">目前分數 ${G.score}</p></div>
@@ -2161,8 +2209,8 @@ const TUTORIAL = [
   [ // 第二天
     {title: '第二天', text: '今天會遇到三種情形，每種先練習一次。', visual: ''},
     {title: '① 兩人選擇', type: 'practice', spec: {kind: 'pick', cards: [{name: '🟢 陳小華', note: '一般感冒，等了 8 分鐘'}, {name: '🔴 林阿姨', note: '胸口痛，臉色蒼白，等了 2 分鐘'}], ok: 1, bad: '林阿姨比較緊急，先叫她。', okMsg: '危急的人先處理。'}},
-    {title: '② 急診', type: 'practice', spec: {kind: 'drag', who: '<b>🚑 急診病人</b><span>胸痛，需要立刻處理</span>', rule: '急診：不管科別，放到任何診間都可以', ok: ['內科', '小兒科', '牙科'],
-      zones: [['內科', '🩺 內科', ''], ['小兒科', '🧸 小兒科', ''], ['牙科', '🦷 牙科', ''], ['door', '🚪 門口（請回）', 'door']], bad: '急診不能請回，要立刻安排看診。', okMsg: '急診已安排看診。'}},
+    {title: '② 急診', type: 'practice', spec: {kind: 'drag', who: '<b>🚑 急診病人</b><span>胸痛，需要立刻處理</span>', rule: '急診：先通知醫護人員評估，再安排看診', ok: 'notify',
+      zones: [['notify', '🚑 通知醫護人員評估', 'transfer'], ['內科', '🩺 內科', ''], ['小兒科', '🧸 小兒科', ''], ['牙科', '🦷 牙科', '']], bad: '急診不能自行分科，要先通知醫護人員評估。', okMsg: '已通知醫護人員評估。'}},
     {title: '③ 內科停診', type: 'practice', spec: {kind: 'drag', who: '<b>王大明</b><span>預約：內科（已停診）</span>', rule: '內科停診：通知改期，不要放進診間', ok: 'resched',
       zones: [['內科', '🩺 內科', ''], ['resched', '📣 通知改期', 'transfer'], ['小兒科', '🧸 小兒科', '']], bad: '內科停診要「通知改期」，不能放進診間。', okMsg: '已通知改期。'}}
   ],
@@ -2182,7 +2230,7 @@ const PRACTICE = {
     zones: [['內科', '🩺 內科', ''], ['小兒科', '🧸 小兒科', ''], ['牙科', '🦷 牙科', ''], ['door', '🚪 門口（請回）', 'door']], bad: '他是牙科、上午喔！', okMsg: '科別與時段都符合。'},
   1: {title: '練習：安排看診一位病人', who: '<b>李大明</b><span>科別：內科</span><span>年齡：長者</span>', rule: '看診條件：內科＋長者', ok: '內科',
     zones: [['內科', '🩺 內科', ''], ['小兒科', '🧸 小兒科', ''], ['牙科', '🦷 牙科', ''], ['door', '🚪 門口（請回）', 'door']], bad: '他是內科、長者，請拖到內科。', okMsg: '科別與年齡層都符合。'},
-  2: {title: '練習：配對一位候補', who: '<b>陳美玲</b><span>一般醫師門診｜上午</span><span>✓ 同意LINE 通知</span>', rule: '把候補拖到服務與時段都相同的空缺', ok: 'slot-ok',
+  2: {title: '練習：配對一位候補', who: '<b>陳美玲</b><span>一般醫師門診｜上午</span><span>✓ 同意數位通知</span>', rule: '把候補拖到服務與時段都相同的空缺', ok: 'slot-ok',
     zones: [['slot-no', '一般醫師門診｜下午', ''], ['slot-ok', '一般醫師門診｜上午', ''], ['slot-no2', '牙科｜上午', '']], bad: '服務和時段都要相同喔！', okMsg: '服務與時段都相同，可以通知。'},
   3: {title: '練習：檢傷一位傷患', who: '<b>傷患 A</b><span>🚶 不能走路｜🫁 呼吸 34 次/分</span>', rule: '呼吸超過 30 → 🔴 立即', ok: 'red',
     zones: [['red', '🔴 立即', 'tri-red'], ['yellow', '🟡 延遲', 'tri-yellow'], ['green', '🟢 輕傷', 'tri-green']], bad: '呼吸超過 30，應該是 🔴 立即。', okMsg: '分類正確。'}
@@ -2259,11 +2307,11 @@ function setPaused(on) {
 }
 
 /* ================= 第三天：預約救援大作戰（V6）================= */
-const APPT_SVC = ['一般醫師門診', '牙科', '營養諮詢', '心理諮詢'];
-const APPT_TIMES = ['上午', '下午'];
+const APPT_SVC = ['一般醫師門診', '牙科', '營養諮詢', '心理諮詢', '復健治療', '慢性病追蹤', '預防接種', '護理門診'];
+const APPT_TIMES = ['上午', '下午', '週六上午'];
 const APPT_SUB = [
   {name: '📩 訊息快手', ms: 60000, hint: '病人回覆一則一則進來。看懂內容，選正確的處理方式。',
-    intro: '病人的 WhatsApp 回覆會陸續進來。看懂內容，選正確的處理方式。'},
+    intro: '病人的回覆會陸續進來。看懂內容，選正確的處理方式。'},
   {name: '🧩 診位配對王', ms: 120000, hint: '把候補拖到對得上的空缺（服務、時段相同，且同意通知）。也可以先點候補，再點空缺。',
     intro: '把候補拖到<b>服務與時段都相同</b>的空缺。沒同意通知的人，按「📋 待人工處理」。'},
 ];
@@ -2278,17 +2326,17 @@ function replyText(a) { if (!a.replyText) a.replyText = pick(APPT_REPLY[a.kind])
 const APPT_CARE = {
   confirm: '謝謝提醒，我明天會準時到！',
   cancel: '太好了，這樣我就不用擔心忘記取消了！',
-  cancelAlready: '太好了，這樣我就不用擔心忘記取消了！',
+  cancelAlready: '謝謝你們幫我核對，希望紀錄是正確的。',
   resched: '謝謝！那我等候新的時段通知。',
   unsure: '好的，我再想想，之後再跟你說。'
 };
-const APPT_ACT = {confirm: '✅ 確認出席', cancel: '❌ 處理取消', resched: '📅 記錄改期', track: '⏳ 待追蹤'};
-const APPT_WANT = {confirm: 'confirm', cancel: 'cancel', cancelAlready: 'cancel', resched: 'resched', unsure: 'track'};
+const APPT_ACT = {confirm: '✅ 確認出席', cancel: '❌ 處理取消', resched: '📅 記錄改期', track: '⏳ 待追蹤', verify: '🔎 核對取消紀錄'};
+const APPT_WANT = {confirm: 'confirm', cancel: 'cancel', cancelAlready: 'verify', resched: 'resched', unsure: 'track'};
 const APPT_WHY = {
   confirm: '病人回覆會出席，直接確認即可。',
   cancel: '病人要取消。記錄取消後，這個時段會空出來，之後可以安排候補。',
-  cancelAlready: '病人說之前已經取消過，但還收到提醒，現在再次要求取消。記錄取消後，時段會空出來，之後可以安排候補。',
-  resched: '病人要改期。記錄改期後，原時段會空出，他要排進新的時段。',
+  cancelAlready: '病人說之前已經取消過，但還收到提醒。先核對原預約紀錄，不要直接再取消，也不要建立新的空缺。',
+  resched: '病人要改期。先記錄改期需求並通知；新時段確認之前，不能直接當成已安排。',
   unsure: '病人還不確定。先標記待追蹤，不要直接當成確認。'
 };
 // 計分（V6 第八節）
@@ -2337,13 +2385,13 @@ function apptSlot(a, from, time) {
   return {id: (from === 'target' ? 't' : 's') + a.id, svc: a.svc, time: time || a.time, state: 'open', left: 0, total: 6000, cand: null, from, task: false};
 }
 function apptWrong(title, body) {
-  G.score -= APPT_SCORE.wrong; G.stats.wrong++; G.combo = 0; G.apptStreak = 0; G.apptErr++; hurt(3); sfx('bad');
+  G.score -= APPT_SCORE.wrong; G.stats.wrong++; G.combo = 0; G.apptStreak = 0; G.apptErr++; hurt(8); sfx('bad');
   G.lastJudge = {ok: false, title: '✗ ' + title, body, until: Date.now() + 6000};
   render();
 }
-function apptRight(pts, title, body) {
+function apptRight(pts, title, body, edu) {
   G.score += pts; G.stats.correct++; G.combo++; heal(1); sfx('ok');
-  G.lastJudge = {ok: true, title, body, until: Date.now() + 5000};
+  G.lastJudge = {ok: true, title, body: body + (edu ? eduTip(edu) : ''), until: Date.now() + 5000};
 }
 function apptTaskDone() { return G.slots.filter(s => s.task && (s.state === 'filled' || s.manualDone)).length; }
 
@@ -2353,14 +2401,14 @@ function apptAct(id, k) {
   if (!a || a.state !== 'inbox' || G.sub !== 0) return;
   const want = APPT_WANT[a.kind];
   if (k !== want) return apptWrong(`這則應該選「${APPT_ACT[want]}」`, APPT_WHY[a.kind]);
-  const base = a.kind === 'confirm' || a.kind === 'unsure' ? APPT_SCORE.reply : a.kind === 'resched' ? APPT_SCORE.resched : APPT_SCORE.cancel;
+  const base = a.kind === 'confirm' || a.kind === 'unsure' || a.kind === 'cancelAlready' ? APPT_SCORE.reply : a.kind === 'resched' ? APPT_SCORE.resched : APPT_SCORE.cancel;
   G.apptStreak++; G.apptMaxStreak = Math.max(G.apptMaxStreak, G.apptStreak);
   const mult = 1;   // V7：不再對第 2 題起雙倍，只保留連續 3、5 次的加成
   let pts = base * mult; const extra = [];
   let title = `✓ ${APPT_ACT[k]} 正確 +${pts}`;
   if (G.apptStreak === 3) { pts += APPT_SCORE.combo3; extra.push('連擊 +5'); }
   if (G.apptStreak === 5) { pts += APPT_SCORE.combo5; extra.push('連擊 +10'); title = '🔥 COMBO ×5！訊息處理高手！'; apptBurst('🔥 COMBO ×5！訊息處理高手！'); }
-  apptRight(pts, title, `${a.name}：「${APPT_CARE[a.kind]}」${extra.length ? '（' + extra.join('、') + '）' : ''}`);
+  apptRight(pts, title, `${a.name}：「${APPT_CARE[a.kind]}」${extra.length ? '（' + extra.join('、') + '）' : ''}`, {confirm: 'd3confirm', cancel: 'd3cancel', resched: 'd3resched'}[a.kind]);
   G.lastJudge.title = title.replace(/ \+\d+$/, '') + ` +${pts}`;
   G.apptStats.handled++;
   G.inbox = G.inbox.filter(x => x !== a);
@@ -2368,11 +2416,11 @@ function apptAct(id, k) {
   else {
     a.state = 'done';
     if (a.kind === 'confirm') { a.final = 'confirmed'; G.apptStats.confirmed++; }
-    if (isCancel(a)) { a.final = 'cancelled'; G.apptStats.cancelled++; G.slots.push(apptSlot(a, 'freed')); }
+    if (a.kind === 'cancelAlready') { a.final = 'verifying'; G.apptStats.verified = (G.apptStats.verified || 0) + 1; }
+    else if (a.kind === 'cancel') { a.final = 'cancelled'; G.apptStats.cancelled++; G.slots.push(apptSlot(a, 'freed')); }
     if (a.kind === 'resched') {
       a.final = 'rescheduling';
       const other = a.time === '上午' ? '下午' : '上午';
-      G.slots.push(apptSlot(a, 'freed'));
       // 記錄改期需求：只是候補需求，不建立新時段；要等實際空缺出現才能安排
       G.waitlist.push({id: 'w' + a.id, name: a.name, svc: a.svc, time: other, consent: true, willing: true, fromId: a.id, slotId: null, event: null, need: true});
     }
@@ -2385,24 +2433,25 @@ function apptLeaveA() {
   G.inbox.concat(G.inboxQ).forEach(a => { a.state = 'pending'; });
   G.inbox = []; G.inboxQ = [];
   const tasks = G.slots.filter(s => s.from === 'freed' || s.from === 'target');
-  while (tasks.length < 3) {
+  while (tasks.length < 4) {
     const s = {id: 'x' + G.slots.length + Math.floor(Math.random() * 1000), svc: pick(APPT_SVC), time: pick(APPT_TIMES), state: 'open', left: 0, total: 6000, cand: null, from: 'freed', task: false};
     G.slots.push(s); tasks.push(s);
   }
   tasks.forEach(s => { s.task = true; });
   G.taskTotal = tasks.length;
   const mk = (s, consent, willing, event) => ({id: 'c' + Math.random().toString(36).slice(2, 8), name: pick(NAMES), svc: s.svc, time: s.time, consent, willing, fromId: null, slotId: s.id, event: event || null});
-  // 保證：2 位可以成功配對、1 位需要人工處理
+  // 保證：3 位可以成功配對、1 位需要人工處理（能配的人變多，玩起來更有得選）
   G.waitlist.push(mk(tasks[0], true, true));
   G.waitlist.push(mk(tasks[1], true, true));
   G.waitlist.push(mk(tasks[2], false, true));
+  G.waitlist.push(mk(tasks[3], true, true));
   // 保證：1 位服務或時段對不上
   const used = new Set(tasks.map(s => s.svc + '|' + s.time));
   const free = [];
   APPT_SVC.forEach(sv => APPT_TIMES.forEach(tm => { if (!used.has(sv + '|' + tm)) free.push([sv, tm]); }));
   if (free.length) { const [sv, tm] = pick(free); G.waitlist.push({id: 'n' + Math.random().toString(36).slice(2, 7), name: pick(NAMES), svc: sv, time: tm, consent: Math.random() < 0.5, willing: true, fromId: null, slotId: null, event: null}); }
   // 額外候補數量隨機（0–2 位），可能是對不上的、沒同意通知的，或可以配對的
-  for (let i = 0, n = Math.floor(Math.random() * 3); i < n; i++) G.waitlist.push(mk(pick(tasks), Math.random() < 0.6, Math.random() < 0.5));
+  for (let i = 0, n = 1 + Math.floor(Math.random() * 2); i < n; i++) G.waitlist.push(mk(pick(tasks), Math.random() < 0.8, Math.random() < 0.8));
   // 救援目標：依本局實際可成功安排的人數設定（最多 3）
   // 突發事件：每局 1–2 個（A 神救援、B 改變主意、C 突然來電、D 幸運配對）
   const evs = shuffle(['A', 'B', 'C', 'D']).slice(0, Math.random() < 0.5 ? 1 : 2);
@@ -2444,15 +2493,15 @@ function apptSend(cid, sid) {
   if (!c || !s || s.state !== 'open') return;
   if (c.svc !== s.svc) return apptWrong(`${c.name} 要的是${c.svc}喔！`, `這格空缺是 ${s.svc}${s.time}，請找對的服務。`);
   if (c.time !== s.time) return apptWrong(`這位病人希望${c.time}就診喔！`, `這格空缺是 ${s.svc}${s.time}，請找${s.time}的候補。`);
-  if (!c.consent) return apptWrong(`${c.name} 沒有同意LINE 通知`, '不能直接發 WhatsApp。請按他的「📋 待人工處理」。');
+  if (!c.consent) return apptWrong(`${c.name} 沒有同意數位通知`, '不能直接發數位通知。請按他的「📋 待人工處理」。');
   s.state = 'notified'; s.cand = c; s.left = c.event === 'A' ? 2000 : 6000; s.total = s.left;
   G.waitlist = G.waitlist.filter(x => x !== c);
   G.selCand = null;
-  apptRight(APPT_SCORE.send, `📨 通知已發出！+${APPT_SCORE.send}`, `${c.name} 正在回覆…`);
+  apptRight(APPT_SCORE.send, `📨 通知已發出！+${APPT_SCORE.send}`, `${c.name} 正在回覆…`, 'd3send');
   G.note = '已發送候補通知，等待回覆…';
   render();
 }
-// 候補沒同意LINE 通知：按「待人工處理」（不強迫，正確標記也加分）
+// 候補沒同意數位通知：按「待人工處理」（不強迫，正確標記也加分）
 function apptManual(cid) {
   const c = G.waitlist.find(x => x.id === cid);
   if (!c || c.consent) return;
@@ -2461,7 +2510,7 @@ function apptManual(cid) {
   s.manualDone = true; s.manualFor = c.name;   // 空缺仍開放，其他符合條件的候補還能配對
   G.waitlist = G.waitlist.filter(x => x !== c);
   G.apptStats.manual++; G.selCand = null;
-  apptRight(APPT_SCORE.manual, `📋 ${c.name} 已加入待辦 +${APPT_SCORE.manual}`, '已交給行政人員後續依授權程序處理。');
+  apptRight(APPT_SCORE.manual, `📋 ${c.name} 已加入待辦 +${APPT_SCORE.manual}`, '已交給行政人員後續依授權程序處理。', 'd3consent');
   G.note = '已加入待辦';
   render();
 }
@@ -2630,7 +2679,7 @@ function apptTick() {
       if (s.from !== 'rush' || s.state !== 'open') return;
       s.exp -= 100;
       if (s.exp <= 0) {
-        s.state = 'expired'; G.taskTotal--; G.score = Math.max(0, G.score - 5); hurt(3); sfx('leave');
+        s.state = 'expired'; G.taskTotal--; G.score = Math.max(0, G.score - 5); hurt(8); sfx('leave');
         G.lastJudge = {ok: false, title: '⏳ 搶手空缺過期了，−5', body: '時段保留時間到了，沒有人被安排進去。下次要更快決定。', until: Date.now() + 4000};
         changed = true;
       }
@@ -2673,7 +2722,7 @@ function apptMsgCard(a) {
   return `<div class="msgcard">
     <div class="bubble clinic">📩 診所：您好，${a.name}，提醒您${a.time}有${a.svc}預約，請問您能否出席？</div>
     <div class="bubble pat">👤 ${a.name}：${replyText(a)}</div>
-    <div class="acts">${['confirm', 'cancel', 'resched', 'track'].map(k =>
+    <div class="acts">${(a.kind === 'cancelAlready' ? ['verify', 'cancel', 'resched', 'track'] : ['confirm', 'cancel', 'resched', 'track']).map(k =>
       `<button class="act" data-act="apt" data-id="${a.id}" data-k="${k}">${APPT_ACT[k]}</button>`).join('')}</div>
   </div>`;
 }
@@ -2708,7 +2757,7 @@ function apptMatchHTML() {
     const open = apptMatchOpen(c);
     const fit = !G.hintOn ? '' : open ? '<small class="okc">✓ 有對得上的空缺</small>' : '<small class="muted">目前沒有對得上的空缺</small>';
     const hl = G.skillHL && G.skillHL.includes(c.id) ? 'hl' : '';
-    const consent = c.consent ? '<small class="okc">✓ 同意LINE 通知</small>' : '<small class="warn">✗ 未同意LINE 通知</small>';
+    const consent = c.consent ? '<small class="okc">✓ 同意數位通知</small>' : '<small class="warn">✗ 未同意數位通知</small>';
     const manual = !c.consent && open ? `<button class="act ghostbtn" data-act="aptmanual" data-id="${c.id}">📋 待人工處理</button>` : '';
     return `<div class="candcard ${G.selCand === c.id ? 'selected' : ''} ${hl}" data-cand="${c.id}" data-act="aptpick" data-id="${c.id}">
       <b>${c.name}</b><small>${c.svc}｜${c.time}</small>${consent}${fit}${manual}
@@ -2794,7 +2843,7 @@ function finishBonus() {
 }
 function bonusEndHTML() {
   const s = G.stats;
-  return `<div class="card center"><h2>大型事故挑戰：${G.grade}</h2>
+  return `${eduCardHTML('bonus')}<div class="card center"><h2>大型事故挑戰：${G.grade}</h2>
       <p>Bonus 評價 <span class="stars">${stars(G.stars)}</span></p>
       <p><b>${G.score}</b> 分（Bonus 另計，不影響主線）</p></div>
     <div class="card"><p>檢傷與送治正確率：${G.accuracy}%</p>
@@ -2820,6 +2869,7 @@ function introHTML() {
 
 function endHTML() {
   if (G.day === 3) return bonusEndHTML();
+  const eduTop = G.day === 2 ? eduCardHTML('d3') : '';
   const mood = G.grade === '順暢' ? 'happy' : G.grade === '大混亂' ? 'worried' : 'neutral';
   const msg = {
     順暢: '櫃台和提醒都照顧到了，大部分預約的病人都準時來了。',
@@ -2827,7 +2877,7 @@ function endHTML() {
     大混亂: '櫃台手忙腳亂，或是提醒沒有用在刀口上。'
   }[G.grade];
   const s = G.stats;
-  return `<div class="endscreen"><div class="card center">
+  return `${eduTop}<div class="endscreen"><div class="card center">
       <div class="marquee" style="margin:4px 0">${[0, 1, 2].map(i => `<div class="${G.grade === '順暢' ? 'walk' : ''}">${avatar({color: PALETTE[i * 2 + 1], hair: HAIRS[i + 1]}, mood, 'sm')}</div>`).join('')}</div>
       <h2>${G.grade}</h2><p>${msg}</p>
       <p>診所評價 <span class="stars">${stars(G.stars)}</span></p>
@@ -3054,35 +3104,76 @@ document.addEventListener('pointercancel', () => {
 });
 
 
+/* ================= 衛教內容：各關結算衛教卡＋遊戲內提示（每則提示每局只出現一次） ================= */
+const EDU = {
+  d1: {title: '🏥 認識你的 CESFAM', core: 'CESFAM 不只是看醫生的地方，也提供預防保健、健康促進、慢性病追蹤及不同專業的健康服務。確認預約資訊並了解所屬中心的服務，有助於讓就醫過程更加順利。',
+    acts: ['確認預約的日期、時間及服務項目。', '認識自己所屬 CESFAM 提供的服務。', '不確定該接受哪種服務，可以向醫療團隊詢問。'],
+    more: '不同健康需求，可能需要不同的醫療服務。遊戲中「不符合就請回」只是模擬的分流規則，不代表真實就醫時不能接受照護。'},
+  d2: {title: '🤝 好的醫療照護，需要彼此協調', core: '醫療服務有時會受到突發事件、人力安排及病人需求影響。當預約或服務發生變動，清楚的通知及溝通可以幫助病人了解後續安排。',
+    acts: ['收到預約變更通知時，確認最新資訊。', '不確定是否已取消或改期時，向醫療中心查詢。', '如果工作、交通、家庭照顧或其他因素影響就醫，可以向中心反映。'],
+    more: '醫療服務的優先順序應依專業評估與適用流程決定。遊戲中的急診病人會先通知醫護人員評估，不由櫃台自行判斷。'},
+  d3: {title: '💚 每一次預約，都很重要', core: '如果你無法出席醫療預約，透過醫療中心提供的管道盡早通知，可以讓醫療團隊更早掌握預約變化，也可能將空出的時段提供給其他正在等待的人。',
+    acts: ['確認自己是否能出席。', '無法出席時，盡早通知醫療中心。', '若提出改期需求，應確認是否已收到新的預約安排。'],
+    more: '確認預約不等於已經到診；提出改期不等於新時間已安排成功；發出候補邀請後，仍需等待對方回覆確認。'},
+  bonus: {title: '🚑 緊急狀況，尋求專業協助', core: '遇到緊急醫療狀況時，應尋求專業醫療協助。遊戲中的檢傷方式只是簡化的模擬情境，不能作為真實急救或檢傷依據。',
+    acts: ['遇到緊急狀況，立即撥打緊急電話尋求協助。', '不確定狀況輕重時，請專業人員判斷。', '完成遊戲不代表具備專業檢傷能力。'],
+    more: '智利：SAMU 131（緊急醫療救護）；Salud Responde 600 360 7777（健康諮詢）。正式發布前由智利合作團隊再次確認。'}
+};
+const EDU_HINT = {
+  d1a: '不同健康需求，可能需要不同的醫療服務。',
+  d1b: '確認預約的科別與時段，可以減少就醫時的混淆。',
+  d2a: '門診變動時，通知病人與安排後續處理同樣重要。',
+  d2b: '醫療服務的優先順序應依專業評估與適用流程決定。',
+  d2c: '急診病人應先通知醫護人員評估，再安排看診。',
+  d3confirm: '確認預約能協助醫療團隊掌握出席意願，但不等於病人已經到診。',
+  d3cancel: '及早取消，可能讓空出的時段有機會重新安排。',
+  d3resched: '提出改期需求，不等於新的時間已安排成功。',
+  d3send: '發出候補邀請後，仍需等待對方回覆確認。',
+  d3consent: '不是每個人都能使用數位通知，應尊重病人的聯絡偏好。',
+  bonus: '遇到緊急醫療狀況，應尋求專業醫療協助。這裡的檢傷只是簡化模擬。'
+};
+function eduTip(k) {
+  G.eduSeen = G.eduSeen || {};
+  if (!EDU_HINT[k] || G.eduSeen[k]) return '';
+  G.eduSeen[k] = true;
+  return `　💡 ${EDU_HINT[k]}`;
+}
+function eduCardHTML(k) {
+  const e = EDU[k]; if (!e) return '';
+  return `<div class="card edu"><small class="muted">衛教小知識</small><h3>${e.title}</h3><p>${e.core}</p>
+    <ol class="edu-acts">${e.acts.map(a => `<li>${a}</li>`).join('')}</ol>
+    <details class="edu-more"><summary>了解更多</summary><p>${e.more}</p></details></div>`;
+}
+
 /* ================= 病人體驗模式：預約小故事（獨立狀態 P，不碰完整版的 G） ================= */
 // 五組隨機情境：病人、服務、時段、取消理由、候補者都不同；每次開始隨機抽一組，且和上一次不同
 const PT_PACKS = [
-  {pt: 'María', svc: '牙科', time: '上午', reason: '明天需要上班，我可能無法出席。', cancel: '我確定不能去了，想取消這次預約。',
+  {pt: 'María', when: '明天上午', svc: '牙科', time: '上午', reason: '明天需要上班，我可能無法出席。', cancel: '我確定不能去了，想取消這次預約。',
     good: {name: 'Pedro', svc: '牙科', time: '上午', consent: true, line: '謝謝！這個時間我可以出席。'},
     bad1: {name: 'Camila', svc: '牙科', time: '下午', consent: true, why: 'Camila 的時段是下午，和這個上午的空缺不符，所以不能安排她。'},
-    bad2: {name: 'José', svc: '牙科', time: '上午', consent: false, why: 'José 還沒有同意LINE 通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡，這不代表他不願意就醫。'}},
-  {pt: 'Tomás', svc: '營養諮詢', time: '下午', reason: '公車誤點，我今天可能來不了。', cancel: '我今天真的沒辦法到，想取消。',
+    bad2: {name: 'José', svc: '牙科', time: '上午', consent: false, why: 'José 還沒有同意數位通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡，這不代表他不願意就醫。'}},
+  {pt: 'Tomás', when: '今天下午', svc: '營養諮詢', time: '下午', reason: '公車誤點，我今天可能會晚到，不確定能不能準時。', cancel: '我確定今天來不了，想取消。',
     good: {name: 'Lucía', svc: '營養諮詢', time: '下午', consent: true, line: '太好了，下午我正好有空！'},
     bad1: {name: 'Andrés', svc: '營養諮詢', time: '上午', consent: true, why: 'Andrés 只能上午來，和這個下午的空缺不符，所以不能安排他。'},
-    bad2: {name: 'Rosa', svc: '營養諮詢', time: '下午', consent: false, why: 'Rosa 還沒有同意LINE 通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡，這不代表她不需要服務。'}},
-  {pt: 'Javiera', svc: '心理諮詢', time: '上午', reason: '孩子生病了，我得在家照顧她。', cancel: '我真的無法過去，想取消這次預約。',
+    bad2: {name: 'Rosa', svc: '營養諮詢', time: '下午', consent: false, why: 'Rosa 還沒有同意數位通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡，這不代表她不需要服務。'}},
+  {pt: 'Javiera', when: '明天上午', svc: '心理諮詢', time: '上午', reason: '孩子生病了，我得在家照顧她。', cancel: '我真的無法過去，想取消這次預約。',
     good: {name: 'Mateo', svc: '心理諮詢', time: '上午', consent: true, line: '謝謝通知！這個時間我可以過去。'},
     bad1: {name: 'Catalina', svc: '一般醫師門診', time: '上午', consent: true, why: 'Catalina 預約的是一般醫師門診，服務項目不同，不能放進心理諮詢的空缺。'},
-    bad2: {name: 'Felipe', svc: '心理諮詢', time: '上午', consent: false, why: 'Felipe 還沒有同意LINE 通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡。'}},
-  {pt: 'Ignacio', svc: '一般醫師門診', time: '下午', reason: '我今天身體不舒服，可能沒辦法去。', cancel: '我今天真的不能去，想取消。',
+    bad2: {name: 'Felipe', svc: '心理諮詢', time: '上午', consent: false, why: 'Felipe 還沒有同意數位通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡。'}},
+  {pt: 'Ignacio', when: '今天下午', svc: '一般醫師門診', time: '下午', reason: '我今天身體不舒服，可能沒辦法去。', cancel: '我今天真的不能去，想取消。',
     good: {name: 'Valentina', svc: '一般醫師門診', time: '下午', consent: true, line: '好的，謝謝你！下午我可以來。'},
     bad1: {name: 'Sebastián', svc: '一般醫師門診', time: '上午', consent: true, why: 'Sebastián 只能上午來，和這個下午的空缺不符。'},
-    bad2: {name: 'Daniela', svc: '一般醫師門診', time: '下午', consent: false, why: 'Daniela 還沒有同意LINE 通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡。'}},
-  {pt: 'Ana', svc: '牙科', time: '下午', reason: '臨時被排班，那個時段我要上班。', cancel: '我真的排不開，想取消這次預約。',
+    bad2: {name: 'Daniela', svc: '一般醫師門診', time: '下午', consent: false, why: 'Daniela 還沒有同意數位通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡。'}},
+  {pt: 'Ana', when: '明天下午', svc: '牙科', time: '下午', reason: '臨時被排班，那個時段我要上班。', cancel: '我真的排不開，想取消這次預約。',
     good: {name: 'Pablo', svc: '牙科', time: '下午', consent: true, line: '謝謝！下午剛好可以，我很需要這個時段。'},
     bad1: {name: 'Lorena', svc: '牙科', time: '上午', consent: true, why: 'Lorena 只能上午來，和這個下午的空缺不符。'},
-    bad2: {name: 'Gabriel', svc: '牙科', time: '下午', consent: false, why: 'Gabriel 還沒有同意LINE 通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡。'}}
+    bad2: {name: 'Gabriel', svc: '牙科', time: '下午', consent: false, why: 'Gabriel 還沒有同意數位通知，不能直接透過線上管道發送。可以由工作人員依照中心流程另行聯絡。'}}
 ];
 const PT = { zh: {
   title: '病人體驗｜預約小故事',
   disclaimer: '這是模擬的衛教遊戲。角色與情境都是虛構的，不需要輸入任何個人資料。',
   back: '回首頁', next: '下一步 ▶', progress: '故事進度',
-  s1Msg: '提醒您：明天{time}有{svc}預約。',
+  s1Msg: '提醒您：{when}有{svc}預約。',
   s1Reply: '不好意思，{reason}',
   s1Q: '你會怎麼處理 {pt} 的回覆？',
   s1_ask: '先確認{pt}是否需要取消或改期',
@@ -3094,10 +3185,15 @@ const PT = { zh: {
   s1RecordBtn: '記錄取消 ▶',
   s1Recorded: '✅ 已記錄 {pt} 的取消。',
   s1Lesson: '取消與改期必須依照病人明確表達的需求處理。',
-  s2Card: '📅 {svc}｜明天{time}', s2From: '原本：已預約', s2To: '可重新安排',
+  s2Card: '📅 {svc}｜{when}', s2From: '原本：已預約', s2To: '可重新安排',
+  s2Pending: '{pt} 已確認取消預約，等待更新時段狀態。', s2Btn: '更新可重新安排的時段',
+  s2Done: '🎉 一個可重新安排的時段出現了！', s1Thanks: '謝謝！這樣我就不用擔心預約沒有取消成功。',
+  statusNames: ['已預約', '已取消', '可重新安排', '待候補確認', '已重新安排'],
+  notAbout: '遊戲是模擬，角色與情境都是虛構，不會修改任何真實預約。',
+  whyEarly: '提早通知，中心就能更早掌握變化，空出的時段也有機會給正在等待的人。',
   s2Text: '因為 {pt} 提前通知，診所有機會將空出的時段提供給其他候補病人。',
   s2Lesson: '提早通知不一定保證空缺會被重新利用，但可以增加安排其他病人的機會。',
-  s3Slot: '空缺：{svc}｜{time}',
+  s3Slot: '空缺：{svc}｜{when}',
   s3Q: '你認為應該先向誰發送候補通知？',
   camilaWhy: '',
   s3Confirmed: '✅ 已確認重新安排',
@@ -3134,8 +3230,11 @@ const PT = { zh: {
 const PT_TXT = PT.zh;
 let P = null;      // 病人模式狀態；完整版的 G 完全不動
 let PT_LAST = -1;
+function ptChips(i) {
+  return `<div class="pt-chips">${PT_TXT.statusNames.map((n, k) => `<span class="pt-chip ${k < i ? 'done' : k === i ? 'now' : ''}">${n}</span>`).join('')}</div>`;
+}
 function ptFill(str, v) { return str.replace(/\{(\w+)\}/g, (_, k) => (v && v[k] !== undefined) ? v[k] : ''); }
-function ptVars() { const k = P.pack; return {pt: k.pt, svc: k.svc, time: k.time, reason: k.reason, cancel: k.cancel, good: k.good.name}; }
+function ptVars() { const k = P.pack; return {pt: k.pt, when: k.when, svc: k.svc, time: k.time, reason: k.reason, cancel: k.cancel, good: k.good.name}; }
 function ptLookOf(name) {
   let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 997;
   return {color: PALETTE[h % PALETTE.length], hair: HAIRS[h % HAIRS.length]};
@@ -3176,7 +3275,8 @@ function patientAct(k, v) {
     } else if (k === 'record') { ptAward('cancel', 10); P.step = 'cancelled'; sfx('ok'); }
     else if (k === 'next') { P.stage = 2; P.step = 'show'; }
   } else if (P.stage === 2) {
-    if (k === 'next') { P.stage = 3; P.step = 'ask'; }
+    if (k === 'open' && P.step === 'show') { P.step = 'open'; sfx('win'); confetti(20); }
+    else if (k === 'next' && P.step === 'open') { P.stage = 3; P.step = 'ask'; }
   } else if (P.stage === 3) {
     if (k === 'cand') {
       const first = P.s3Att === 0; P.s3Att++;
@@ -3213,15 +3313,21 @@ function stage1HTML() {
     ${ptMsg('patient', pk.pt, pk.cancel)}
     <div class="pt-ok">${PT_TXT.s1Ok}</div>
     <button data-act="pt" data-k="record">${PT_TXT.s1RecordBtn}</button>`;
-  return `
+  return `${ptChips(1)}
+    ${ptMsg('patient', pk.pt, PT_TXT.s1Thanks)}
     <div class="pt-ok">${ptFill(PT_TXT.s1Recorded, v)}</div>
     <p class="muted">${PT_TXT.s1Lesson}</p>
     <button data-act="pt" data-k="next">${PT_TXT.next}</button>`;
 }
 function stage2HTML() {
   const v = ptVars();
-  return `
-    <div class="pt-slot on"><b>${ptFill(PT_TXT.s2Card, v)}</b><br><span class="muted">${PT_TXT.s2From}</span><br><span class="pt-tag">${PT_TXT.s2To}</span></div>
+  if (P.step === 'show') return `${ptChips(1)}
+    <div class="pt-slot"><b>${ptFill(PT_TXT.s2Card, v)}</b><br><span class="muted">${PT_TXT.s2From}</span>
+    <p class="muted" style="margin:6px 0 0">${ptFill(PT_TXT.s2Pending, v)}</p></div>
+    <button data-act="pt" data-k="open">${PT_TXT.s2Btn}</button>`;
+  return `${ptChips(2)}
+    <div class="pt-slot on"><b>${ptFill(PT_TXT.s2Card, v)}</b><br><span class="pt-tag">${PT_TXT.s2To}</span></div>
+    <div class="pt-ok">${PT_TXT.s2Done}</div>
     <p>${ptFill(PT_TXT.s2Text, v)}</p>
     <p class="muted">${PT_TXT.s2Lesson}</p>
     <button data-act="pt" data-k="next">${PT_TXT.next}</button>`;
@@ -3229,12 +3335,13 @@ function stage2HTML() {
 function stage3HTML() {
   const pk = P.pack, v = ptVars();
   const done = P.step === 'confirmed';
-  const slot = `<div class="pt-slot ${done ? 'on' : ''}"><b>${ptFill(PT_TXT.s3Slot, v)}</b>${done ? `<br><span class="pt-tag">${PT_TXT.s3Confirmed}</span>` : ''}</div>`;
+  const stIdx = {ask: 2, sending: 3, reply: 3, confirmed: 4}[P.step] || 2;
+  const slot = `${ptChips(stIdx)}<div class="pt-slot ${done ? 'on' : ''}"><b>${ptFill(PT_TXT.s3Slot, v)}</b>${done ? `<br><span class="pt-tag">${PT_TXT.s3Confirmed}</span>` : ''}</div>`;
   if (P.step === 'ask') return `${slot}
     <p class="pt-q">${PT_TXT.s3Q}</p>
     ${P.cands.map(r => { const c = pk[r]; return `<button class="pt-opt" data-act="pt" data-k="cand" data-v="${r}">
       <span class="pt-letter">${'ABC'[P.cands.indexOf(r)]}</span>
-      <span><b>${c.name}</b><br><small>${c.svc}｜${c.time}</small><br><span class="pt-badge ${c.consent ? 'ok' : 'warn'}">${c.consent ? '已同意LINE 通知' : '尚未授權LINE 通知'}</span></span></button>`; }).join('')}
+      <span><b>${c.name}</b><br><small>${c.svc}｜${c.time}</small><br><span class="pt-badge ${c.consent ? 'ok' : 'warn'}">${c.consent ? '✓ 已同意數位通知' : '✗ 尚未授權數位通知'}</span></span></button>`; }).join('')}
     ${P.wrong ? `<div class="pt-why">${P.wrong}</div>` : ''}`;
   if (P.step === 'sending') return `${slot}
     <div class="pt-ok">${ptFill(PT_TXT.pedroSent, {name: pk.good.name})}</div><p class="muted">${PT_TXT.waiting}</p>`;
@@ -3252,18 +3359,21 @@ function stage4HTML() {
     <button data-act="pt" data-k="next">${PT_TXT.s4Btn}</button>`;
 }
 function patientResultHTML() {
-  const score = `<p class="muted">${ptFill(PT_TXT.resScore, {s: P.score, m: 40})}<br>${ptFill(PT_TXT.resFirst, {f: P.firstTry})}</p>`;
+  const score = `<p class="muted" style="margin:6px 0 0">${ptFill(PT_TXT.resScore, {s: P.score, m: 40})}<br>${ptFill(PT_TXT.resFirst, {f: P.firstTry})}</p>`;
   return `<div class="pt-hero"><div class="pt-chars">${avatar(ptLookOf(P.pack.pt), 'happy', 'sm')}${avatar(ptLookOf(P.pack.good.name), 'happy', 'sm')}${avatar(STAFF, 'happy', 'sm')}</div>
     <h2>${PT_TXT.resTitle}</h2><p>${PT_TXT.resSub}</p>
-    <p>${PT_TXT.resAchieve}</p>${score}</div>
-    <div class="card"><h3>${PT_TXT.resHeadline}</h3><p class="pt-es">${PT_TXT.resHeadlineEs}</p>
+    ${score}</div>
+    <div class="card center"><h3>${PT_TXT.resHeadline}</h3><p class="pt-es">${PT_TXT.resHeadlineEs}</p>
       <p>${PT_TXT.resBody}</p><p><b>${PT_TXT.resCore}</b></p><p class="pt-es">${PT_TXT.resCoreEs}</p></div>
     <div class="card">${PT_TXT.resCards.map((c, i) => `<div class="pt-step"><span class="pt-num">${i + 1}</span><div><b>${c.t}</b><div class="pt-es">${c.es}</div><p style="margin:4px 0 0">${c.d}</p></div></div>`).join('')}</div>
-    <div class="card"><p>${PT_TXT.resSupport}</p></div>
-    <div class="card"><h3>${PT_TXT.resDigital}</h3><p class="pt-es">${PT_TXT.resDigitalEs}</p>
-      <p>${PT_TXT.resDigitalBody}</p><p class="muted">${PT_TXT.resProto}</p></div>
+    <details class="card edu-more"><summary><b>了解更多</b></summary>
+      <p><b>為什麼提早通知有幫助？</b><br>${PT_TXT.whyEarly}</p>
+      <p><b>遇到工作、交通或照顧困難怎麼辦？</b><br>${PT_TXT.resSupport}</p>
+      <p><b>數位工具如何協助溝通？</b><br>${PT_TXT.resDigitalBody}<br><span class="muted">${PT_TXT.resProto}</span></p>
+      <p><b>遊戲與真實預約有何不同？</b><br>${PT_TXT.notAbout}</p></details>
     <button data-act="pt" data-k="replay">${PT_TXT.resReplay}</button>
     <button class="pt-sec" data-act="pt" data-k="full">${PT_TXT.resFull}</button>
+    <button class="pt-sec" data-act="pt" data-k="exit">${PT_TXT.back}</button>
     <p class="muted center">${PT_TXT.disclaimer}</p>`;
 }
 
