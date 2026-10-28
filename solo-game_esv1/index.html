@@ -859,7 +859,7 @@ function saveLB(list, kind = 'main') {
   try { localStorage.setItem(LB_KEYS[kind], JSON.stringify(list)); } catch (e) {}
 }
 /* 線上排行榜：Google 試算表 + Apps Script（免費）。LB_URL 留空時只顯示本機排行。 */
-const LB_URL = ''; // Después de desplegar Apps Script, pega aquí la URL de la « aplicación web »
+const LB_URL = 'https://script.google.com/macros/s/AKfycbxQDvdMy5LazqsHjlTnD0ilxlzGmcEefYuruz7u9J5xLEsRYTh2959_KMY5wfAaLC0J/exec'; // Después de desplegar Apps Script, pega aquí la URL de la « aplicación web »
 const ONLINE_LB = {main: null, bonus: null}; // null = aún no se obtienen datos en línea
 function fetchOnlineLB(kind) {
   if (!LB_URL) return;
